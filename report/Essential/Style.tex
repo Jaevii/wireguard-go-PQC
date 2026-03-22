@@ -1,0 +1,45 @@
+%-----------------------------------------------
+%              Titelsida layout
+%-----------------------------------------------
+
+\newgeometry{top=4cm, hmargin=0cm, bottom=1.5cm}
+\begin{titlepage}
+	\centering
+
+    \includegraphics[width=0.4\textwidth]{\thelogo} \\
+
+    \vspace{3cm}
+	
+    % Title
+    \begin{minipage}{0.65\textwidth}
+    \centering
+        {\Huge \textrm{\thetitle} \\[2mm]}
+        {\Large \textrm{\thesubtitle} \\[8mm]}
+    \end{minipage}
+
+	\vspace{0.5cm}
+	
+	% Namn
+	\begin{table}[h]
+	\centering
+    \begin{tabular}{l}
+    \Huge \textrm{\theauthor}
+    \end{tabular}
+    \end{table}
+    
+    \vspace{2cm}
+	\textbf{Supervisor:} \\
+	\vspace{-1.5mm}
+	\begin{table}[h]
+	\centering
+    \begin{tabular}{l l}
+	\thesupervisor
+    \end{tabular}
+    \end{table}
+
+    \vspace{2cm}
+	
+    \textrm{\theinstitution} \\ \vspace{1cm}
+
+    \today
+\end{titlepage}

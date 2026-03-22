@@ -1,0 +1,96 @@
+%-----------------------------------------------
+%                   Template
+%-----------------------------------------------
+%                   Settings
+%-----------------------------------------------
+%   Ändra språk, och snabb compile
+\usepackage[english]{babel}       % Språk. [swedish] eller [english].
+\usepackage[]{graphicx}           % Bilder. [demo] för snabb compile!
+
+%-----------------------------------------------
+%                   Packages
+%-----------------------------------------------
+\usepackage[utf8]{inputenc}          % Kodning av text.
+
+\pagenumbering{gobble}       % Stoppar sidnumrering på titelsida.
+\usepackage{mathtools}       % Ekvationer.
+\usepackage{bm}              % Bold matte
+\usepackage[a4paper,left=40mm,right=40mm,top=40mm,bottom=60mm]{geometry}      % Sidlayout.
+\usepackage{float}           % För [H].
+\usepackage[T1]{fontenc}     % Bra för åäö.
+\usepackage{csquotes}        % Fancy Quotes
+\usepackage{microtype}       % Fixar bättre textlayout.
+\usepackage{amsmath}
+\usepackage{tabto}
+\usepackage{glossaries}
+\usepackage{lipsum}
+
+\usepackage[margin=15pt,font={small},labelfont={bf}%
+,justification=centering]{caption}      % Snygg figurtext.
+\usepackage{booktabs}                   % Snygga Tabeller.
+\usepackage{longtable}                  % Långa tabeller, flera sidor.
+\setlength{\abovecaptionskip}{3pt}      % Flyttar tabelltext närmare.
+\renewcommand{\arraystretch}{1.2}       % Gör tabeller  större.
+\setlength{\parindent}{0cm}             % Tar bort "indent" på ny rad.
+%\usepackage[none]{hyphenat}             % Slutar dela upp ord.
+
+\usepackage[backend=biber,style=ieee]{biblatex}
+\addbibresource{Essential/ref.bib} % Mapp för Källor.
+\graphicspath{{Images/}}                % Mapp för bilder.
+\usepackage{tikz}
+\usetikzlibrary{external}
+\tikzexternalize[prefix=tikz/]
+\usepackage{pdfpages}                   % PDFs.
+\addto{\captionsswedish}{\renewcommand*%%
+{\contentsname}{Innehållsförteckning}}  % Ändrar namn -> Innehållsförteckning
+
+% URLs
+\usepackage{url}
+\usepackage{hyperref}                   % Hyperlänkar + färg.
+\usepackage[nameinlink,noabbrev,swedish]{cleveref} % \cref{} & \Cref{}.
+
+% Allow URL breaks at / and -
+\def\UrlBreaks{\do\/\do-}
+
+% Hyperref settings
+\usepackage{color}                                 % Färg.
+\definecolor{royalblue}{rgb}{0.0, 0.14, 0.4}       % Egen färg.
+\hypersetup{                                       % Färg på hyperlänkar.
+     colorlinks  = true,
+     linkcolor   = black,              % internal links.
+     citecolor   = red,          % bibliography.
+     filecolor   = royalblue,          % file links.
+     urlcolor    = royalblue           % external links.
+}
+
+\usepackage{matlab-prettifier}          % Matlab text!
+\usepackage[per-mode=symbol]{siunitx}   % si. Skriva enheter/nummer.
+\sisetup{output-decimal-marker={,},%    % si. ("{,}" till "{.}" för engelska).
+range-phrase=--,range-units=single,exponent-product=\cdot}
+
+%-----------------------------------------------
+%                 New commands                
+%-----------------------------------------------
+% Använd för radbyte. \n
+\newcommand{\n}{\vskip 1em}
+
+% Bold matte och text (Automatisk) ex. \B{TEXT och } $\B{\alpha}$
+\newcommand*{\B}[1]{\ifmmode\bm{#1}\else\textbf{#1}\fi}
+
+% Partial Derivative. \pde{a}{b}
+\newcommand{\pde}[2]{\frac{\partial #1}{\partial #2}}
+
+% Använd för matlab fil.
+\newcommand{\matlabfile}[1]
+{\UseRawInputEncoding\hyphenpenalty=50\exhyphenpenalty=50\lstinputlisting[style = Matlab-editor,basicstyle = \mlttfamily]{#1}}
+
+% Använd för matlab text.
+\lstnewenvironment{matlab}
+{\UseRawInputEncoding\hyphenpenalty=50\exhyphenpenalty=50\lstset{style = Matlab-editor,basicstyle = \mlttfamily}}{}
+
+% Använd för centrerade tabeller
+\newcolumntype{P}[1]{>{\centering\arraybackslash}p{#1}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%  Creative Commons CC BY 4.0, Hugo Laestander %%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

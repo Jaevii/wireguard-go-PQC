@@ -1,0 +1,126 @@
+\newpage
+\section{Background}
+
+\subsection{Asymmetric Cryptography}
+Asymmetric cryptography, also referred to as public-key cryptography, addresses the fundamental problem of symmetric cryptography in secure communication: how can two foreign parties establish a secure channel without first meeting up in person to exchange a secret key. 
+
+In order to solve this problem, asymmetric cryptography uses two mathematically related keys: a private key and a public key. The public key can be distributed freely, while the private key must remain secret. Messages encrypted with a public key can then only be decrypted using its corresponding private key, enabling secure communication without the need for a predetermined shared secret.
+
+To illustrate this concept, imagine two people: Alice and Bob. Alice wants to send a secret message to Bob. To achieve this, they do the following: 
+\begin{enumerate}
+    \item Bob sends a box and an open padlock, to which only Bob has the key, to Alice.
+    \item Alice places her message in the box, locks it with the padlock, and sends it back to Bob.
+    \item Bob uses his key to unlock the box and is able to read Alice's message.
+\end{enumerate}
+Even if some adversary were to intercept the box on its way back to Bob, they would be unable to open it and read Alice's message since they don't have Bob's key.
+
+This simple analogy describes the core idea of asymmetric cryptography: separating the methods of encryption and decryption. Here the padlock represents the public key, and Bob's key the private key. He can send copies of his padlock to anyone who wants to send him a secret message, knowing only he can open them.
+
+In practice, these systems use specific mathematical problems known as trapdoor functions \cite{trapdoor}. These are problems that are easy to compute in one direction, but computationally infeasable to reverse without hidden information (the private key).
+
+Asymmetric cryptography is not used directly to encrypt large amounts of data due to its computational overhead. Instead, it is commonly used during the initial handshake phase of a protocol to establish a shared symmetric key. Once this shared secret has been established, symmetric encryption algorithms can be used to protect the bulk of the communication efficiently.
+
+\subsubsection{RSA and Diffie-Hellman}
+The first generation of widely adopted asymmetric systems relied on two primary mathematical hurdles. The RSA (Rivest-Shamir-Adleman) algorithm, introduced in 1977 by Ron Rivest, Adi Shamir, and Leonard Adleman \cite{rsa}, built on the mathematical difficulty of factoring large composite integers. While multiplying two large prime numbers is computationally trivial, determining the original factors from their product is believed to be infeasible for sufficiently large numbers using classical algorithms. This asymmetry forms the basis of the RSA trapdoor function.
+
+The other fundamental primitive introduced to public-key cryptography was the Diffie-Hellman (DH) key exchange, introduced in 1976 by Whitfield Diffie and Martin Hellman \cite{dh}. Rather than encrypting messages directly, Diffie-Hellman introduced the concept of the secure key exchange. Thus enabling two parties to securely establish a shared secret over an insecure channel. The security of this protocol relies on the hardness of the discrete logarithm problem, which involves recovering an exponent from a modular exponentiation operation.
+
+These methods defined the first thirty years of digital security, but as computational power grew, the required key sizes for RSA and standard DH became unmanageable, leading to a need for more efficient mathematics.
+
+\subsubsection{The Shift to Elliptic-Curve Cryptography}
+In the early 2000s, many cryptograpic protocols began transitioning toward Elliptic-Curve Cryptography (ECC). Instead of operating over finite fields of integers, ECC relies on the algebraic structure of elliptic curves over finite fields. The advantage of the Elliptic Curve Discrete Logarithm Problem (ECDLP) is that it's significantly harder to solve per bit of key size than the two previous mathematical problems used in RSA and DH.
+
+For example, a 256-bit elliptic curve key, such as Curve25519 used by WireGuard, provides a security level equivalent to a 3072-bit RSA or DH key \cite{Barker}. This efficiency is one of the primary reasons modern protocols have adopted ECC. Smaller key sizes reduce bandwidth requirements and computational overhead, enabling faster handshakes and smaller packet headers, which are particularly important for performance-sensitive systems such as VPN protocols.
+
+Despite their efficiency, elliptic-curve systems remain fundamentally vulnerable to quantum attacks due to their reliance on discrete logarithm problems. This vulnerability forms one of the key motivations for the development of post-quantum cryptographic algorithms. 
+
+Recognizing this risk, NIST has initiated a long-term transition toward quantum-resistant cryptographic algorithms. Current guidance recommends that organizations begin migrating away from classical public-key mechanisms in the coming years, with many traditional systems expected to be phased out after approximately 2030 as post-quantum standards are deployed \cite{PQCTransition}. This planned transition highlights the need to evaluate how existing protocols that rely heavily on elliptic-curve cryptography, such as WireGuard, can adapt to post-quantum cryptographic primitives.
+
+\subsubsection{Key Exchange vs. Key Encapsulation}
+It's important to distinguish between the two main methods for establishing shared cryptographic keys. 
+
+Traditional key exchange protocols, such as Diffie-Hellman and its elliptic-curve variant, employs an interactive process in which both parties contribute to the generation of a shared secret. Instead of sending the secret directly, each party exchanges intermediate values derived from their private key. Using these values, both participants can independently compute the same shared key.
+
+In contrast, most post-quantum algorithms, including CRYSTALS-Kyber and HQC, are designed as Key Encapsulation Mechanisms (KEMs). Rather than performing a mutual exchange of values, KEMs follow a sender-receiver model, where the sender generates a random symmetric key and encapsulates it using the recipient's public key. This process produces a ciphertext that is transmitted to the recipient. Using the corresponding private key, the recipient can decapsulate the ciphertext and recover the same shared symmetric key.
+
+While the end result is the same, the logistical flow is different. This distinction is a core challenge when integrating post-quantum KEMs into existing protocols like WireGuard, which was originally designed for the interactive key exchange flow of Diffie-Hellman.
+
+Despite this difference in communication structure, KEMs are generally preferred for post-quantum cryptography due to their simpler security models and resistance to several classes of implementation attacks.
+
+\subsection{The Quantum Threat}
+As discussed in the introduction, the long-term security of modern cryptographic systems relies on the assumption that certain mathematical problems are too computationally hard for classical computers to solve. However, the development of quantum computing challenges this assumption. Quantum computers operate according to the principles of quantum mechanics and are capable of executing algorithms that can outperform classical algorithms for specific types of problems. 
+
+There are two quantum algorithms that are especially relevant in this context: Shor's algorithm, which efficiently solves integer factorization and the discrete logarithm problem, and Grover's algorithm, which accelerates brute-force search. These algorithms are the frontrunners of the quantum threat to current cryptographic systems and are discussed in the following sections.
+
+\subsubsection{Quantum Computing}
+We must establish a high-level understanding of quantum computers work in order to understand how they are able to threaten current encryption. 
+
+A classical computer processes information using bits, binary values that exist in one of two states: 0 or 1. These bits are manipulated deterministically through electrical circuits made up of transistors and logic gates, which enables the computer to perform arithmetic and logical operations. At any given point in time, a classical system represents a single, well-defined state.
+
+A quantum computer instead operates using quantum bits, commonly referred to as \textit{qubits}, which has the ability to exist in a superposition of both states simultaneously. This means that a qubit represents a linear combination of the two states rather than a single deterministic value. When multiple qubits are combined, the system can represent a probability distribution of many possible states at once. For a system of $n$ qubits, this corresponds to $2^n$ possible configurations, resulting in an exponentially large state space.
+
+Another key property of quantum systems is entanglement, where the states of multiple qubits become correlated such that the state of one qubit cannot be described independently of the others. Entanglement enables quantum computers to capture and exploit relationships between variables in ways that are not possible in classical systems.
+
+Quantum algorithms leverage superposition, entanglement, and the manipulation of probability amplitudes to perform computations in fundamentally different ways than classical algorithms. By carefully controlling how probability amplitudes evolve during a computation, quantum algorithms can amplify the likelihood of correct solutions while cancelling out incorrect ones. This is what allows quantum computers to achieve significant computational speedups compared to their classical counterparts \cite{Brassard2000Amplitude}.
+
+\subsubsection{Shor's Algorithm}
+One of the most significant breakthroughs in quantum computing for cryptography was the discovery of Shor's algorithm by Peter Shor in 1994 \cite{shors}. The algorithm provides an efficient quantum method for solving the two mathematical problems that are central to modern public-key cryptography: integer factorization and the discrete logarithm problem.
+
+In order to fully grasp the impact of Shor's algorithm, let's first consider the best known classical algorithm for solving these problems. The General Number Field Sieve (GNFS) which operates in sub-exponential time \cite{GNFS}. While it is significantly faster than naive approaches, the computational cost still grows at an infeasible rate at larger key sizes. The current largest RSA integer that has been factored using a software implementation of GNFS with an optimized sieving step called CADO-NFS is the RSA-250 in February 2020 \cite{CADO-NFS}, it is 829 bits long and utilized approximately 2700 CPU core-years \cite{RSA250}.
+
+Shor's algorithm completely demolishes this notion of infeasability. By leveraging the principles of quantum mechanics, it is able to factor large integers and solve discrete logarithms in polynomial time. It accomplishes this by reducing the problem into a period-finding problem. Given an integer $N$, the algorithm selects a random value and constructs a function whose period is related to the factors of $N$. While finding such periods is computationally difficult for classical computers, quantum computers can solve this efficiently using the Quantum Fourier Transform (QFT).
+
+The practical implications of Shor's algorithm have been extensively explored and optimized in later research. Notably, Craig Gidney and Martin Ekerå demonstrated in 2021 that factoring a 2048-bit RSA integer could be feasible using a quantum computer with around 20 million physical qubits and 8 hours of computation time, assuming realistic error rates, cycle times and reaction times \cite{Gidney2021RSA2048}.
+
+The existence of Shor's algorithm therefore represents a fundamental threat to modern public-key cryptography. Since protocols such as TLS, SSH, and VPN systems rely on RSA, Diffie-Hellman, or elliptic-curve cryptography for secure key establishment, the availability of large-scale quantum computers would render these systems insecure.
+
+\subsubsection{Grover's Algorithm}
+Grover's algorithm \cite{grovers} addresses a different class of problems than Shor's algorithm, namely unstructured search. Given a search space of size $N$, a classical brute-force algorithm requires $\mathcal{O}(N)$ evaluations to find a desired element. Grover's algorithm, however, reduces this complexity to $\mathcal{O}(\sqrt{N})$ by leveraging quantum amplitude amplification.
+
+In the context of cryptography, Grover's algorithm impacts symmetric-key primitives such as block ciphers and cryptographic hash functions. However, unlike Shor's algorithm, Grover's algorithm does not completely break symmetric cryptographic schemes. Instead, it weakens their effective security level by a quadratic factor. This degradation can be mitigated by increasing key sizes. For example, a 128-bit symmetric key, which is considered secure against classical adversaries, would offer only 64 bits of security against a quantum adversary using Grover's algorithm. Consequently, doubling the key length (e.g., to 256 bits) is generally considered sufficient to maintain security in a post-quantum setting.
+
+It is also important to note that practical implementations of Grover's algorithm face significant overhead due to error correction and circuit depth requirements, which further limits its near-term applicability. Nonetheless, it remains a critical consideration when evaluating the long-term security of symmetric cryptographic systems.
+
+\subsubsection{``Harvest now, decrypt later.''}
+A common misconception about the quantum threat is that it is not relevant until sufficiently large quantum computers become available. This overlooks an already active risk model known as the ``harvest now, decrypt later'' \cite{hndl}.
+
+In this scenario, an adversary intercepts and stores encrypted communications today with the intention of decrypting them in the future once sufficiently powerful quantum computers exist. This strategy is particularly concerning for data with long-term confidentiality requirements, such as government communications, intellectual property, personal data, and critical infrastructure information.
+
+Public-key cryptographic systems are especially vulnerable in this context. Since key exchange mechanisms such as RSA and Diffie-Hellman rely on problems that are efficiently solvable by Shor's algorithm, any recorded ciphertext that depends on these mechanisms could be decrypted retroactively. Even if the data remains secure today, its confidentiality cannot be guaranteed over longer time horizons.
+
+The ``harvest now, decrypt later'' threat has important implications for system design and cryptographic migration strategies. Organizations must consider not only the current security of their systems, but also the future security of data that is being transmitted or stored today. This has led to increased urgency in the development and standardization of post-quantum cryptographic algorithms, which are designed to remain secure against both classical and quantum adversaries.
+
+As a result, transitioning to quantum-resistant cryptographic schemes is not solely a precaution for the future, but a necessary step to protect sensitive information against adversaries who are already preparing for the advent of quantum computing.
+
+\subsection{Post-Quantum Cryptography}
+
+Cryptographic context: classical vs post-quantum.
+
+Application context: how PQC fits into WireGuard-like VPNs. (Larger keys/ciphertexts)
+
+Challenges
+
+\subsubsection{Lattice-Based Cryptography (CRYSTALS-Kyber)}
+CRYSTALS-Kyber \cite{kyber}, now officially renamed to ML-KEM in the NIST Post-Quantum Cryptography Standardization Process \cite{mlkem}, is a
+
+\subsubsection{Code-Based Cryptography (Hamming Quasi-Cyclic)}
+Hamming Quasi-Cyclic (HQC) \cite{hqc}, is a
+
+\subsubsection{Hybridization Strategies and KEM Combiners}
+
+
+\subsection{Related work}
+
+PQ-WireGuard 2021 \cite{pqwg}
+
+Rosenpass 2024 \cite{rosenpass}
+
+PQ-WireGuard (Rebar) 2026 \cite{rebar}
+
+\subsection{Concurrent work}
+
+NIST Post-Quantum Cryptography Standardization Process \cite{nistpqc}
+
+HQC standardization process
+
+Regev's Algorithm \cite{Regev2023EfficientFactoring} and discrete logarithms extension \cite{Ekera2024RegevDLog}

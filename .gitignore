@@ -1,1 +1,33 @@
 wireguard-go
+
+# LaTeX auxiliary files in report directory
+report/*.aux
+report/*.auxlock
+report/*.bbl
+report/*.bbl-SAVE-ERROR
+report/*.bcf
+report/*.blg
+report/*.fdb_latexmk
+report/*.fls
+report/*.log
+report/*.out
+report/*.run.xml
+report/*.synctex.gz
+report/*.toc
+report/*.lof
+report/*.lot
+report/*.idx
+report/*.ind
+report/*.ilg
+report/*.nav
+report/*.snm
+report/*.vrb
+report/*.glg
+report/*.glo
+report/*.gls
+report/*.ist
+
+texput.log
+
+# Tikz externalized files (if not in)
+report/tikz/
