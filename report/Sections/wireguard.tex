@@ -1,21 +1,44 @@
 \newpage
 \section{WireGuard}
-WireGuard is a modern VPN protocol developed by Jason A. Donenfeld \cite{wireguard}.
+WireGuard is a modern, free and open-source VPN protocol developed by Jason A. Donenfeld \cite{wireguard}, and first presented at the Network and Distributed System Security Symposium (NDSS) in 2017. It was conceived as a reaction to the complexity and bloat of existing VPN solutions such as IPsec and OpenVPN, that makes them notoriously difficult to configure correctly and whose large codebases make security auditing require significant effort. WireGuard's philosophy is therefore built around three core principles: simplicity, high performance, and strong cryptography.
 
-Uses only UDP.
+The primary C implementation of WireGuard is written in less than 4,000 lines of code, excluding cryptographic primitives, compared to the 100,000 to 600,000 lines of the OpenVPN and IPsec implementations. This makes the codebase small enough for a single person to read and understand in full, which has multiple direct benefits: a smaller attack surface, easier auditing, and fewer places for subtle bugs to hide.
 
-Widely deployed in the Linux kernel.
+Unlike IPsec or OpenVPN, WireGuard does not offer any choice of cryptographic primitives. The suite is fixed. This eliminates the risk of misconfiguration and the complexity of negotiating cipher suites. The protocol uses Curve25519 for key exchange, ChaCha20-Poly1305 for authenticated symmetric encryption, BLAKE2s for hashing, and SipHash24 for hashtable keys. 
 
-\subsection{Noise}
-The Noise protocol framework is \cite{noise}.
+WireGuard operates over the User Datagram Protocol (UDP) and uses a lightweight handshake mechanism to establish secure connections. A key design goal is to achieve fast connection establishment with minimal latency, typically requiring only one round-trip time (1-RTT). 
 
-\subsection{Handshake}
+Due to its efficiency and simplicity, WireGuard has been integrated into the Linux kernel, is used as the underlying protocol in commercial VPN services such as NordVPN (NordLynx) and Mullvad, and is also widely deployed across mobile devices and cloud infrastructure.
 
+\subsection{The Noise Protocol Framework}
+WireGuard is built on the Noise Protocol Framework \cite{noise}, a public-domain framework for constructing secure communication protocols based on Diffie-Hellman key exchange. The framework defines a series of handshake patterns that describe how two parties initiate communication, exchange keys, and establish shared secrets. 
 
-\subsection{PQC Challenges}
-Maximum Transmission Unit (1232 bytes for IPv6)
+WireGuard specifically uses the NoiseIK pattern. In this pattern, the initiator already knows the static public key of the responder, which allows for authenticated key exchange. This design provides mutual authentication while keeping the handshake efficient.
 
-\subsection{Go implementation}
+\subsection{Handshake and Cryptographic Primitives}
 
+Optional pre-shared key
 
-\subsection{Motivation for Hybridization}
+The handshake uses the following set of modern cryptographic primitives:
+\begin{itemize}
+    \item \textbf{Curve25519} for Diffie-Hellman key exchange. Curve25519 is an elliptic-curve DH function designed for both high performance and resistance to implementation errors. A static Curve25519 key pair is only 32 bytes, making it compact enough to fit easily in protocol messages.
+    \item \textbf{ChaCha20-Poly1305} for authenticated symmetric encryption. ChaCha20 is a stream cipher and Poly1305 is a message authentication code; combined, they provide both confidentiality and integrity. This combination is particularly fast on hardware without AES acceleration, such as mobile processors.
+    \item \textbf{BLAKE2s} for hashing. BLAKE2s is a fast cryptographic hash function used for key derivation and as part of the handshake's transcript hashing.
+    \item \textbf{HKDF} for key derivation, built on top of BLAKE2s, used to derive the final session keys from the accumulated DH outputs.
+\end{itemize}
+
+\subsection{Go Implementation}
+While the main WireGuard implementation is a Linux kernel module written in C, a userspace implementation exists for platforms where kernel-level access is unavailable or undesirable. This  \texttt{wireguard-go}, the official userspace implementation written in Go. \texttt{wireguard-go} exposes the same configuration interface as the kernel module and is used on macOS, Windows, iOS, and Android.
+
+The main motivation for a userspace implementation in Go is portability and ease of integration. Go provides cross-platform support, a rich standard library, and easier interoperability with higher-level application code compared to kernel C code. This makes it straightforward to embed WireGuard as a library in a larger application, as is common in VPN clients.
+
+However, userspace implementations come with a performance trade-off. Because each packet must cross the boundary between user space and the kernel's network stack through a TUN interface, there is additional overhead compared to the kernel module, where packet processing happens entirely in kernel space. For this reason, \texttt{wireguard-go} is recommended primarily for platforms where the kernel module is not available, and the kernel module remains the preferred choice on Linux servers.
+
+A notable alternative to \texttt{wireguard-go} is BoringTun, a userspace implementation written in Rust that is developed by Cloudflare \cite{CloudflareBoringtun}. BoringTun is deployed on millions of iOS and Android consumer devices as well as thousands of Cloudflare Linux servers.  Because Rust avoids garbage collection and provides fine-grained control over memory, it can achieve better and more predictable performance than the Go implementation for packet-heavy workloads.
+
+In the context of this thesis, the Go implementation is of particular interest because it allows PQC cryptographic libraries (which are often written in Go or have Go bindings) to be integrated directly into the WireGuard codebase without requiring kernel modifications. This makes experimental PQC integration significantly easier compared to modifying the C kernel module.
+
+\subsection{PQC Implementation Challenges} \label{wg-PQC}
+Integrating PQC into WireGuard introduces several challenges that stem from a fundamental architectural mismatch. WireGuard's handshake is built around the Diffie-Hellman key exchange, where both parties contribute a key share and independently derive the same shared secret. But since PQC schemes are typically structured as KEMs, where one party generates a shared secret and encrypts it for the other, this means that PQC algorithms cannot simply replace the DH steps in the existing handshake without overarching changes to its code. 
+
+A more immediate practical challenge is the size of PQC key material. A Curve25519 public key is 32 bytes, while an ML-KEM-768 public key is much larger at 1,184 bytes and its ciphertext at 1,088 bytes. This matters because WireGuard is specifically designed to keep its handshake messages small enough to fit within a single unfragmented UDP packet. For IPv6, the minimum guaranteed MTU along any path is 1,280 bytes, leaving only 1,232 bytes for the payload after subtracting the IP and UDP headers. Fitting a full PQC handshake, especially a hybrid one that also carries classical key material, within this budget is very difficult, and exceeding it forces fragmentation, which causes the protocol to no longer maintain its 1-RTT handshake core design property.

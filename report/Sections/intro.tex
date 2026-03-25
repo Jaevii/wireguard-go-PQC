@@ -1,43 +1,42 @@
 \newpage
 \section{Introduction}
-
-\subsubsection*{What}
 In today's digital society, asymmetric encryption underpins nearly every aspect of global secure communication. Cryptographic protocols such as Transport Layer Security (TLS), Secure Shell (SSH), and Virtual Private Networks (VPNs) rely on asymmetric cryptography to securely establish shared secrets between previously untrusted parties. These cryptographic systems are based on the assumption that specific mathematical problems, notably integer factorization and discrete logarithms, are too hard for classical computers to solve efficiently.
 
 However, this assumption may not hold in the long term. Rapid advances in quantum computing research suggest that large-scale, fault-tolerant quantum computers may become viable within the coming decades \cite{Swayne2025QuantumRoadmaps}. These are computers capable of leveraging the laws of quantum mechanics to perform quantum algorithms that achieves significant computational speedups for specific classes of problems in comparison to their classical counterparts. Such machines would be able to fundamentally break classical cryptography. 
 
 Two quantum algorithms stand out in this cryptographic context. Peter Shor's algorithm can efficiently factor large integers and compute discrete logarithms \cite{shors}, and Lov Grover's algorithm \cite{grovers}, which provides a quadratic speedup to brute-force key searches. The former directly breaks the public-key primitives underlying RSA, Diffie-Hellman and elliptic-curve cryptography, while the latter reduces the effective security level of symmetric ciphers and hash functions by half.
 
-\subsubsection*{Why}
 Once quantum computers reach this critical scale, they will likely be capable of decrypting nearly all historical and contemporary communications secured with current public-key systems. Moreover, adversaries can already capture encrypted traffic today with the intent of decrypting it later when quantum capabilities become available, a strategy commonly referred to as ``harvest now, decrypt later.'' \cite{hndl} This threat makes it essential to begin the transition toward quantum-resistant cryptography as soon as possible, since deploying new cryptographic standards across the Internet ecosystem will take many years.
 
 To stay ahead of this threat, the cryptographic community is actively developing Post-Quantum Cryptography (PQC) algorithms. These are new types of ``quantum-resistant'' mechanisms designed to be secure against both today's computers and tomorrow's quantum machines. The algorithms are based on mathematical problems believed to remain hard for quantum computers, such as those derived from lattices, error-correcting codes, or hash functions. The National Institute of Standards and Technology (NIST) initiated, back in 2016, a global effort to identify and standardize these new methods \cite{nistpqc}, resulting in several promising candidates.
 
-After several years of public evaluation, the NIST Post-Quantum Cryptography Standardization Process selected and standardized CRYSTALS-Kyber \cite{kyber}, a lattice-based Key-Encapsulation Mechanism (KEM), and is currently in the process of standardizing Hamming Quasi-Cyclic (HQC) \cite{hqc}, a code-based KEM, as next-generation standards for public-key encryption and key exchange. These schemes are now considered the primary building blocks for securing Internet communication in the quantum era.
+After several years of public evaluation, the NIST Post-Quantum Cryptography Standardization Process selected and standardized CRYSTALS-Kyber (standardized as ML-KEM) \cite{kyber}, a lattice-based Key-Encapsulation Mechanism (KEM), and is currently in the process of standardizing Hamming Quasi-Cyclic (HQC) \cite{hqc}, a code-based KEM. These schemes are considered primary building blocks for securing internet communication in the quantum era. 
 
-\subsubsection*{How}
 While the theoretical security of these algorithms has been extensively studied, their practical deployment within real-world communication protocols remains an active research challenge. Post-quantum schemes often have larger key sizes, ciphertexts, and computational overhead compared to classical cryptographic methods. Such differences can significantly affect performance-sensitive protocols that prioritize efficiency.
 
 One such protocol is WireGuard \cite{wireguard}, a modern VPN protocol designed for minimalism, simplicity, and high throughput. WireGuard currently relies on elliptic-curve cryptography, specifically Curve25519, as part of its authenticated key exchange mechanism. While this design offers excellent efficiency on classical hardware, elliptic-curve cryptography is vulnerable to quantum attacks due to its reliance on the discrete logarithm problem.
 
-Integrating PQC into WireGuard therefore presents several unique challenges related to efficiency, compatibility, and code maintainability. These include managing increased message sizes, maintaining low handshake latency, and preserving the protocol's minimalist design philosophy. Existing solutions, such as Rosenpass and PQ-WireGuard prototypes, have demonstrated the feasibility of quantum-resistant VPN connections through external or hybrid key exchanges \cite{rosenpass}\cite{pqwg}.
+Integrating PQC into WireGuard therefore presents several unique challenges related to efficiency, compatibility, and code maintainability. These include managing increased message sizes, maintaining low handshake latency, and preserving the protocol's minimalist design philosophy. Existing solutions, such as Rosenpass and PQ-WireGuard prototypes, have demonstrated the feasibility of quantum-resistant VPN connections through external or hybrid key exchanges \cite{rosenpass}\cite{pqwg}\cite{rebar}.
 
 Yet, few studies have systematically compared the performance characteristics of NIST-approved algorithms when integrated into WireGuard's architecture.
 
-\subsubsection*{My contribution}
-This thesis addresses that gap by designing, implementing, and evaluating a hybrid WireGuard handshake that supports two NIST-selected Key-Encapsulation Mechanisms: CRYSTALS-Kyber and Hamming Quasi-Cyclic. The implementation enables an empirical comparison of their latency, computational overhead, memory usage, and message size, and contrasts the results against existing post-quantum WireGuard implementations. By quantifying these trade-offs, the work aims to provide practical insights into the real-world viability of post-quantum VPNs and contribute to the broader effort of securing Internet communication against future quantum threats.
+This thesis addresses that gap by designing, implementing, and evaluating a hybrid WireGuard handshake that supports two NIST-selected Key-Encapsulation Mechanisms: ML-KEM and Hamming Quasi-Cyclic. The implementation enables an empirical comparison of their latency, computational overhead, memory usage, and message size, and contrasts the results against existing post-quantum WireGuard implementations. By quantifying these trade-offs, the work aims to provide practical insights into the real-world viability of post-quantum VPNs and contribute to the broader effort of securing Internet communication against future quantum threats.
 
 \subsection{Problem statement and research questions}
-\textit{How does different NIST-approved Post-Quantum Key-Encapsulation Mechanisms, specifically CRYSTALS-Kyber and HQC, affect the performance, resource usage, and practical deployability of a hybrid WireGuard handshake compared to existing post-quantum approaches such as Rosenpass?}
+\textit{How does NIST-approved Post-Quantum Key-Encapsulation Mechanisms, specifically ML-KEM and HQC, affect the performance, resource usage, and practical deployability of a hybrid WireGuard handshake compared to existing post-quantum approaches such as Rosenpass?}
 
 \begin{enumerate}[label=\textbf{RQ\arabic*.}]
-    \item Evaluate whether the NIST selected PQC algorithms for key exchange and digital signatures are fit to use in the WireGuard VPN protocol without compromising its core design principles.
-    \begin{enumerate}
-        \item Evaluate storage, bandwidth, and usability tradeoffs for these algorithms and ways to optimize them.
-        \item Compare against previous implementations such as Rosenpass and other PQ-WireGuard prototypes.
-        \item Find a balance between security level and ciphertext size.
-    \end{enumerate}
-    \item Explore the benefits and drawbacks of Hybridization, which combines classical cryptography with PQC.
+    \item How does NIST-selected post-quantum key encapsulation mechanisms, specifically ML-KEM and HQC, affect the performance of a WireGuard handshake?
+
+    \item What impact do ML-KEM and HQC have on resource usage in WireGuard, particularly in terms of bandwidth, message size, and storage requirements?
+
+    \item To what extent can ML-KEM and HQC be integrated into WireGuard without violating its core design principles, such as low latency, small handshake size, and simplicity?
+
+    \item How does hybrid cryptographic approaches (combining classical Diffie-Hellman with PQC) compare to purely post-quantum approaches in terms of security, performance, and deployability?
+
+    \item How does a hybrid WireGuard implementation using ML-KEM and HQC compare to existing post-quantum solutions, such as Rosenpass, in terms of performance and practical deployment?
+
+    \item What trade-offs exist between security level and ciphertext size when selecting PQC algorithms for use in WireGuard?
 \end{enumerate}
 
 \subsection{Scope and limitations}
@@ -57,7 +56,33 @@ This thesis addresses that gap by designing, implementing, and evaluating a hybr
 \end{itemize}
 
 \subsection{The scarlet thread}
+The central theme of this thesis is the integration of post-quantum cryptographic algorithms into existing secure communication protocols, with a specific focus on WireGuard. 
 
+The work is motivated by the emerging threat posed by quantum computing, which challenges the security of widely used public-key cryptographic schemes. In response, PQC introduces new algorithms that are believed to be resistant to quantum attacks, but these algorithms also introduce practical challenges related to performance, resource usage, and protocol compatibility.
+
+The thesis follows a progression from theoretical foundations to practical application. First, the principles of classical and post-quantum asymmetric cryptography are introduced, along with the quantum threat that motivates the transition. Next, the NIST-selected post-quantum algorithms, ML-KEM and HQC, are described and analyzed in terms of their properties. Along with this, the overarching PQC challenges, as well as hybridization strategies, are discussed.
+
+The main focus of the thesis is then the evaluation of how these algorithms can be integrated into the WireGuard protocol, particularly through hybrid cryptographic approaches. This includes analyzing the impact on performance, bandwidth usage, and protocol design constraints. Finally, the proposed approaches are compared to existing solutions, such as Rosenpass, in order to assess their practical viability.
+
+The unifying thread throughout the thesis is the balance between security and practicality when transitioning to PQC in real-world systems.
 
 \subsection{Thesis structure}
-This thesis is structured as:
+The remainder of this thesis is structured as follows.
+
+Section 2.1 provides background on classical cryptography, including public-key cryptographic schemes such as RSA, Diffie-Hellman, and elliptic-curve cryptography. It also introduces key concepts such as key exchange and key encapsulation mechanisms.
+
+Section 2.2 presents the quantum threat to modern cryptography. This includes a high-level overview of quantum computing and relevant algorithms such as Shor's and Grover's algorithms, as well as the ``Harvest now, decrypt later.'' risk model.
+
+Section 2.3 introduces Post-Quantum Cryptography. It introduces different families of post-quantum algorithms, with a focus on ML-KEM and HQC, and analyzes their properties, challenges, and trade-offs. Hybrid cryptographic approaches are also presented.
+
+Section 3 focuses on the WireGuard protocol. It describes its core design principles, underlying cryptographic framework, handshake mechanism, and discusses the challenges of integrating PQC algorithms into this context.
+
+Section 4 Related work
+
+Section 5 Concurrent work
+
+Section 6 Method
+
+Section 7 presents an evaluation of hybrid post-quantum approaches in WireGuard. This includes analysis of performance, bandwidth usage, and implementation considerations, as well as a comparison with existing solutions such as Rosenpass.
+
+Finally, Section 8 and 9 concludes the thesis and discusses potential directions for future work.

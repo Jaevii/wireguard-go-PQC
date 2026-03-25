@@ -41,7 +41,14 @@ It's important to distinguish between the two main methods for establishing shar
 
 Traditional key exchange protocols, such as Diffie-Hellman and its elliptic-curve variant, employs an interactive process in which both parties contribute to the generation of a shared secret. Instead of sending the secret directly, each party exchanges intermediate values derived from their private key. Using these values, both participants can independently compute the same shared key.
 
-In contrast, most post-quantum algorithms, including CRYSTALS-Kyber and HQC, are designed as Key Encapsulation Mechanisms (KEMs). Rather than performing a mutual exchange of values, KEMs follow a sender-receiver model, where the sender generates a random symmetric key and encapsulates it using the recipient's public key. This process produces a ciphertext that is transmitted to the recipient. Using the corresponding private key, the recipient can decapsulate the ciphertext and recover the same shared symmetric key.
+In contrast, most post-quantum algorithms, including CRYSTALS-Kyber and HQC, are designed as Key Encapsulation Mechanisms (KEMs). Rather than performing a mutual exchange of values, KEMs follow a sender-receiver model, where the sender generates a random symmetric key and encapsulates it using the recipient's public key. This process produces a ciphertext that is transmitted to the recipient. Using the corresponding private key, the recipient can decapsulate the ciphertext and recover the same shared secret key.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{Images/KEM.png}
+\caption{A simple view of key establishment using a KEM}
+\label{fig:KEM}
+\end{figure}
 
 While the end result is the same, the logistical flow is different. This distinction is a core challenge when integrating post-quantum KEMs into existing protocols like WireGuard, which was originally designed for the interactive key exchange flow of Diffie-Hellman.
 
@@ -77,7 +84,7 @@ The existence of Shor's algorithm therefore represents a fundamental threat to m
 \subsubsection{Grover's Algorithm}
 Grover's algorithm \cite{grovers} addresses a different class of problems than Shor's algorithm, specifically unstructured search. Given a search space of size $N$, a classical brute-force algorithm requires $\mathcal{O}(N)$ evaluations to find a target element. Grover's algorithm reduces this complexity to $\mathcal{O}(\sqrt{N})$ by leveraging quantum amplitude amplification.
 
-In the context of cryptography, Grover's algorithm impacts symmetric-key primitives such as block ciphers and hash functions. But, unlike Shor's algorithm, Grover's algorithm does not completely break symmetric cryptographic schemes. Instead, it effectively halves their security level in terms of bit strength. This degradation can be mitigated by increasing key sizes. For example, a 128-bit symmetric key, which is considered secure against classical adversaries, would offer only 64 bits of security against a quantum adversary using Grover's algorithm. Consequently, doubling the key length (e.g., to 256 bits) is generally considered sufficient to maintain security in a post-quantum setting.
+In the context of cryptography, Grover's algorithm impacts symmetric-key primitives such as block ciphers and hash functions. But, unlike Shor's algorithm, Grover's algorithm does not completely break symmetric cryptographic schemes. Instead, it effectively halves their security level in terms of bit strength. This degradation can be mitigated by increasing key sizes. For example, a 128-bit symmetric key, which is considered secure against classical adversaries, would offer only 64 bits of security against a quantum adversary using Grover's algorithm. Consequently, doubling the key length (from 128 to 256 bits) is generally considered sufficient to maintain security in a post-quantum setting.
 
 It is also important to note that practical implementations of Grover's algorithm face significant overhead due to error correction and circuit depth requirements, which further limits its near-term applicability. But it remains a critical consideration when evaluating the long-term security of symmetric cryptographic systems.
 
@@ -101,32 +108,36 @@ At the standards level, NIST's deprecation timelines add further urgency. Classi
 In summary, the ``harvest now, decrypt later'' threat establishes that the urgency of post-quantum migration is determined not by when quantum computers will arrive, but by the confidentiality requirements of data being transmitted and stored today. The combination of already-active data collection, long cryptographic migration timelines, and firm regulatory deadlines means that organizations handling sensitive data must treat the transition to quantum-resistant cryptography as an active and ongoing priority.
 
 \subsection{Post-Quantum Cryptography}
+Post-Quantum Cryptography (PQC) refers to cryptographic algorithms that are designed to remain secure against attacks from both classical and quantum computers. The goal is to replace or complement current cryptographic primitives such as RSA, Diffie-Hellman, and ECC. In many cases, PQC schemes are designed to be integrated into existing protocols with minimal changes, although this still requires adaptations due to fundamental differences in protocol logic and accommodation for larger key sizes.
 
-Application context: how PQC fits into WireGuard-like VPNs. (Larger keys/ciphertexts)
+Most PQC algorithms are based on mathematical problems that are believed to be hard even for quantum computers. The main categories include lattice-based, code-based, multivariate, and hash-based cryptography. This thesis focuses on the two NIST-selected approaches: lattice-based cryptography (ML-KEM) and code-based cryptography (HQC).
 
-Challenges
+\subsubsection{Lattice-Based Cryptography (CRYSTALS-Kyber / ML-KEM)}
+Formerly known as CRYSTALS-Kyber \cite{kyber}, now standardized under the name ML-KEM (Module-Lattice-Based Key-Encapsulation Mechanism) in the Federal Information Processing Standards (FIPS) publication 203 \cite{mlkem}, is a lattice-based KEM finalized by NIST in August 2024.
 
-\subsubsection{Lattice-Based Cryptography (CRYSTALS-Kyber)}
-CRYSTALS-Kyber \cite{kyber}, now officially renamed to ML-KEM in the NIST Post-Quantum Cryptography Standardization Process \cite{mlkem}, is a
+ML-KEM is based on the hardness of lattice problems, specifically the so-called Module Learning With Errors (MLWE) problem. The core idea is that a system of linear equations with a small amount of added random noise is computationally hard to solve, even for a quantum computer.
+
+One of the main advantages of ML-KEM is its strong performance and relatively moderate key sizes when compared to other PQC candidates. For example, ML-KEM-768 has a public key size of around 1,184 bytes, which is manageable in protocols like TLS. Key generation and encapsulation are also significantly faster than RSA. These properties make ML-KEM suitable for practical deployment, which is why NIST selected it as the primary standard for post-quantum key establishment.
 
 \subsubsection{Code-Based Cryptography (Hamming Quasi-Cyclic)}
-Hamming Quasi-Cyclic (HQC) \cite{hqc}, is a
+Hamming Quasi-Cyclic (HQC) \cite{hqc} is a code-based KEM selected by NIST in March 2025 as a backup standard to ML-KEM \cite{Moody2025NISTIR8545}. A draft standard is expected in 2026, with finalization planned for 2027.
 
-\subsubsection{Hybridization Strategies and KEM Combiners}
+The security of HQC is based on the hardness of decoding random quasi-cyclic codes, specifically the Quasi-Cyclic Syndrome Decoding (QCSD) problem. This problem is a structured variant of the general Syndrome Decoding (SD) problem, which is known to be NP-hard. Unlike older code-based schemes such as McEliece \cite{McEliece1978}, HQC does not require hiding the structure of the code. Instead, it uses publicly known quasi-cyclic codes, and its security relies entirely on the hardness of the decoding problem itself.
 
+HQC was selected primarily to provide \textit{cryptographic diversity}. Since ML-KEM is based on lattice problems, a future cryptanalytic breakthrough targeting lattice-based cryptography could potentially affect all systems relying on ML-KEM. By standardizing HQC, which is based on a completely different mathematical foundation, NIST ensures that a backup remains available if ML-KEM is found to be vulnerable. NIST cited HQC's solid and well-analyzed construction as reasons it was preferred over other fourth-round candidates.
 
-\subsection{Related work}
+\subsubsection{Practical Challenges}
+Despite their security advantages, PQC algorithms introduce several practical challenges that must be addressed before they can be widely deployed.
 
-PQ-WireGuard 2021 \cite{pqwg}
+The main challenge is the significantly larger message sizes compared to classical cryptography. PQC schemes typically produce larger public keys, ciphertexts, and signatures, which increases the size of protocol messages. This can create compatibility issues with existing systems, especially older implementations that impose strict limits on message sizes. These larger key materials may require adjustments to how handshake messages are structured and transmitted.
 
-Rosenpass 2024 \cite{rosenpass}
+Another challenge is the integration of PQC algorithms into existing protocols as these were originally designed for classical cryptographic primitives and do not always directly support the properties of PQC schemes. As a result, careful modifications are required to ensure correct functionality and maintain security guarantees. In the case of TLS 1.3, for instance, changes are needed to accommodate larger key shares and to support hybrid key exchange mechanisms.
 
-PQ-WireGuard (Rebar) 2026 \cite{rebar}
+Finally, PQC implementations must be designed with strong resistance to side-channel attacks. Like classical cryptographic algorithms, PQC schemes can leak sensitive information through timing differences, power consumption, or electromagnetic emissions. Recent research has demonstrated practical side-channel attacks against implementations of HQC, which highlights the importance of constant-time implementations and careful engineering practices.
 
-\subsection{Concurrent work}
+\subsubsection{Hybridization Strategies}
+Because PQC algorithms are relatively new and have not yet undergone the same level of long-term cryptanalysis as classical schemes, a common deployment strategy is to combine a classical key exchange with a PQC KEM in a single handshake. This approach is known as a \textit{hybrid key exchange}.
 
-NIST Post-Quantum Cryptography Standardization Process \cite{nistpqc}
+In a hybrid scheme, both a classical algorithm (such as elliptic-curve Diffie-Hellman) and a PQC KEM (such as ML-KEM) are executed in parallel. The resulting shared secrets are then combined using a KDF to derive the final session key. The key property of this approach is that security holds as long as \textit{at least one} of the two components remains secure. If the PQC algorithm contains an unknown vulnerability, the classical component continues to provide security against current adversaries. Conversely, if a sufficiently powerful quantum computer becomes available in the future, the PQC component ensures that the session key remains protected.
 
-HQC standardization process
-
-Regev's Algorithm \cite{Regev2023EfficientFactoring} and discrete logarithms extension \cite{Ekera2024RegevDLog}
+Hybrid key exchange is currently the industry-standard approach for deploying PQC in practice. It is already used in TLS~1.3, where hybrid key exchange mechanisms such as \texttt{X25519MLKEM768} (combining X25519 with ML-KEM-768) have been standardized by the IETF \cite{ietf-tls-ecdhe-mlkem-04}, and is being deployed by providers such as Cloudflare \cite{Westerbaan2025PQ}.
