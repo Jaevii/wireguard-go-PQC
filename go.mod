@@ -12,5 +12,6 @@ require (
 
 require (
 	github.com/google/btree v1.1.2 // indirect
+	github.com/open-quantum-safe/liboqs-go v0.0.0-20260310140033-75451133b94a // indirect
 	golang.org/x/time v0.7.0 // indirect
 )

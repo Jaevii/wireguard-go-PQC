@@ -22,6 +22,12 @@ func TestFormatting(t *testing.T) {
 			t.Errorf("unable to walk %s: %v", path, err)
 			return nil
 		}
+		if d.IsDir() {
+			switch path {
+			case "vendor", ".deps", ".git":
+				return filepath.SkipDir
+			}
+		}
 		if d.IsDir() || filepath.Ext(path) != ".go" {
 			return nil
 		}

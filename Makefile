@@ -3,8 +3,10 @@ DESTDIR ?=
 BINDIR ?= $(PREFIX)/bin
 
 OQS_DIR         ?= vendor/liboqs
-OQS_BUILD_DIR   ?= $(OQS_DIR)/build
-OQS_PREFIX      ?= $(CURDIR)/.deps/liboqs
+OQS_SANITIZED_NAME := $(shell basename "$(CURDIR)" | tr ' ' '_')
+OQS_WORK_ROOT   ?= /tmp/$(OQS_SANITIZED_NAME)
+OQS_BUILD_DIR   ?= $(OQS_WORK_ROOT)/build/liboqs
+OQS_PREFIX      ?= $(OQS_WORK_ROOT)/deps/liboqs
 OQS_PKGCONFIG_DIR := $(OQS_PREFIX)/lib/pkgconfig
 OQS_LIBGO_PC    := $(OQS_PKGCONFIG_DIR)/liboqs-go.pc
 OQS_PKGCONFIG_ENV := PKG_CONFIG_PATH="$(OQS_PKGCONFIG_DIR):$${PKG_CONFIG_PATH}"
@@ -33,9 +35,11 @@ $(OQS_BUILD_DIR)/CMakeCache.txt: $(OQS_DIR)/CMakeLists.txt
 	cmake -S "$(OQS_DIR)" -B "$(OQS_BUILD_DIR)" -G Ninja \
 	    -DCMAKE_BUILD_TYPE=Release \
 	    -DCMAKE_INSTALL_PREFIX="$(OQS_PREFIX)" \
+		-DOPENSSL_ROOT_DIR=$(shell brew --prefix openssl) \
+		-DOPENSSL_LIBRARIES=$(shell brew --prefix openssl)/lib \
 	    -DBUILD_SHARED_LIBS=OFF \
 	    -DOQS_BUILD_ONLY_LIB=ON \
-	    -DOQS_USE_OPENSSL=OFF \
+	    -DOQS_USE_OPENSSL=ON \
 	    -DOQS_ENABLE_KEM_BIKE=OFF \
 	    -DOQS_ENABLE_KEM_CLASSIC_MCELIECE=OFF \
 	    -DOQS_ENABLE_KEM_FRODOKEM=OFF \
@@ -56,9 +60,11 @@ $(OQS_PREFIX)/include/oqs/oqs.h: $(OQS_BUILD_DIR)/CMakeCache.txt
 # ── liboqs-go pkg-config shim ───────────────────────────────────────────────
 # liboqs-go expects a liboqs-go.pc file. We generate one that points
 # at our local install prefix rather than relying on a fragile symlink.
+OPENSSL_PREFIX := $(shell brew --prefix openssl)
 $(OQS_LIBGO_PC): $(OQS_PREFIX)/include/oqs/oqs.h
 	mkdir -p "$(OQS_PKGCONFIG_DIR)"
 	cp "$(OQS_PKGCONFIG_DIR)/liboqs.pc" "$(OQS_LIBGO_PC)"
+	sed -i '' 's|^Libs:.*|& -L$(OPENSSL_PREFIX)/lib -lssl -lcrypto|' "$(OQS_LIBGO_PC)"
 
 oqs: $(OQS_LIBGO_PC)
 
@@ -73,6 +79,7 @@ install: wireguard-go
 
 # ── test ────────────────────────────────────────────────────────────────────
 test: oqs
+	$(OQS_PKGCONFIG_ENV) go clean -cache -testcache
 	$(OQS_PKGCONFIG_ENV) go test ./...
 
 # ── clean ───────────────────────────────────────────────────────────────────
