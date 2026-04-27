@@ -31,3 +31,9 @@ texput.log
 
 # Tikz externalized files (if not in)
 report/tikz/
+
+.deps/
+.build/
+vendor/liboqs/build/
+vendor/liboqs/build-*/
+vendor/liboqs/install/
