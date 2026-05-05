@@ -2,9 +2,9 @@
 \section{Background}
 
 \subsection{Asymmetric Cryptography}
-Asymmetric cryptography, also referred to as public-key cryptography, addresses the fundamental problem of symmetric cryptography in secure communication: how can two foreign parties establish a secure channel without first meeting up in person to exchange a secret key. 
+Asymmetric cryptography, also referred to as public-key cryptography, addresses the fundamental problem of symmetric cryptography in secure communications: how can two foreign parties establish a secure channel without first meeting up in person to exchange a secret key. 
 
-In order to solve this problem, asymmetric cryptography uses two mathematically related keys: a private key and a public key. The public key can be distributed freely, while the private key must remain secret. Messages encrypted with a public key can then only be decrypted using its corresponding private key, enabling secure communication without the need for a predetermined shared secret.
+In order to solve this problem, asymmetric cryptography uses two mathematically related keys: a private key and a public key. The public key can be distributed freely, while the private key must remain secret. Messages encrypted with a public key can then only be decrypted using its corresponding private key, enabling secure communications without the need for a predetermined shared secret.
 
 To illustrate this concept, imagine two people: Alice and Bob. Alice wants to send a secret message to Bob. To achieve this, they do the following: 
 \begin{enumerate}
@@ -16,7 +16,7 @@ Even if some adversary were to intercept the box on its way back to Bob, they wo
 
 This simple analogy describes the core idea of asymmetric cryptography: separating the methods of encryption and decryption. Here the padlock represents the public key, and Bob's key the private key. He can send copies of his padlock to anyone who wants to send him a secret message, knowing only he can open them.
 
-In practice, these systems use specific mathematical problems known as trapdoor functions \cite{trapdoor}. These are problems that are easy to compute in one direction, but computationally infeasable to reverse without hidden information (the private key).
+In practice, these systems use specific mathematical problems known as trapdoor functions \cite{trapdoor}. These are problems that are easy to compute in one direction, but computationally infeasible to reverse without hidden information (the private key).
 
 Asymmetric cryptography is not used directly to encrypt large amounts of data due to its computational overhead. Instead, it is commonly used during the initial handshake phase of a protocol to establish a shared symmetric key. Once this shared secret has been established, symmetric encryption algorithms can be used to protect the bulk of the communication efficiently.
 
@@ -41,7 +41,7 @@ It's important to distinguish between the two main methods for establishing shar
 
 Traditional key exchange protocols, such as Diffie-Hellman and its elliptic-curve variant, employs an interactive process in which both parties contribute to the generation of a shared secret. Instead of sending the secret directly, each party exchanges intermediate values derived from their private key. Using these values, both participants can independently compute the same shared key.
 
-In contrast, most post-quantum algorithms, including CRYSTALS-Kyber and HQC, are designed as Key Encapsulation Mechanisms (KEMs). Rather than performing a mutual exchange of values, KEMs follow a sender-receiver model, where the sender generates a random symmetric key and encapsulates it using the recipient's public key. This process produces a ciphertext that is transmitted to the recipient. Using the corresponding private key, the recipient can decapsulate the ciphertext and recover the same shared secret key.
+In contrast, asymmetric post-quantum algorithms, including ML-KEM and HQC, are almost exclusively designed as Key Encapsulation Mechanisms (KEMs). Rather than performing a mutual exchange of values, KEMs follow a sender-receiver model, where the sender generates a random symmetric key and encapsulates it using the recipient's public key. This process produces a ciphertext that is transmitted to the recipient. Using the corresponding private key, the recipient can decapsulate the ciphertext and recover the same shared secret key.
 
 \begin{figure}[H]
 \centering
@@ -52,10 +52,10 @@ In contrast, most post-quantum algorithms, including CRYSTALS-Kyber and HQC, are
 
 While the end result is the same, the logistical flow is different. This distinction is a core challenge when integrating post-quantum KEMs into existing protocols like WireGuard, which was originally designed for the interactive key exchange flow of Diffie-Hellman.
 
-Despite this difference in communication structure, KEMs are generally preferred for post-quantum cryptography due to their simpler security models and resistance to several classes of implementation attacks.
+Despite this difference in their structure, KEMs are generally preferred for post-quantum cryptography due to the nature of the mathematical problems on which post-quantum security is based. These do not support the bidirectional structure of a key exchange protocol. Instead, they lend themselves to a one-directional approach where one party can efficiently encapsulate a secret under a public key, while only the holder of the corresponding private key can recover it.
 
 \subsection{The Quantum Threat}
-As discussed in the introduction, the long-term security of modern cryptographic systems relies on the assumption that certain mathematical problems are too computationally hard for classical computers to solve. However, the development of quantum computing challenges this assumption. Quantum computers operate according to the principles of quantum mechanics and are capable of executing algorithms that can outperform classical algorithms for specific types of problems. 
+As discussed in the introduction, the long-term security of modern cryptographic systems relies on the assumption that certain mathematical problems are computationally infeasible for classical computers to solve. However, the development of quantum computing challenges this assumption. Quantum computers operate according to the principles of quantum mechanics and are capable of executing algorithms that can outperform classical algorithms for specific types of problems. 
 
 There are two quantum algorithms that are especially relevant in this context: Shor's algorithm, which efficiently solves integer factorization and the discrete logarithm problem, and Grover's algorithm, which accelerates brute-force search. These algorithms are the frontrunners of the quantum threat to current cryptographic systems and are discussed in the following sections.
 
@@ -70,10 +70,13 @@ The other key property of quantum systems is entanglement, where the states of m
 
 Quantum algorithms leverage superposition, entanglement, and the manipulation of probability amplitudes to perform computations in a fundamentally different way than classical algorithms. By carefully controlling how probability amplitudes evolve during a computation, quantum algorithms can amplify the likelihood of correct solutions while cancelling out incorrect ones. This is what allows quantum computers to achieve significant computational speedups compared to their classical counterparts \cite{Brassard2000Amplitude}.
 
+Quantum algorithms leverage superposition, entanglement, and the manipulation of probability amplitudes to perform certain classes of computations in a fundamentally different way than classical algorithms. By carefully controlling how probability amplitudes evolve during computation, these algorithms can amplify the likelihood of correct solutions while cancelling out incorrect ones. This interference structure is what enables quantum computers to achieve significant speedups over classical computation for problem classes where it can be meaningfully exploited \cite{Brassard2000Amplitude}.
+
 \subsubsection{Shor's Algorithm}
 One of the most significant breakthroughs in quantum computing for cryptography was the discovery of Shor's algorithm by Peter Shor in 1994 \cite{shors}. The algorithm provides an efficient quantum method for solving the two mathematical problems that are central to modern public-key cryptography: integer factorization and the discrete logarithm problem.
 
-In order to fully grasp the impact of Shor's algorithm, let's first consider the best known classical algorithm for solving these problems. The General Number Field Sieve (GNFS) which operates in sub-exponential time \cite{GNFS}. While it is significantly faster than naive approaches, the computational cost still grows at an infeasible rate at larger key sizes. The current largest RSA integer that has been factored using a software implementation of GNFS, with an optimized sieving step, called CADO-NFS is RSA-250 in February 2020 \cite{CADO-NFS}. This number is 829 bits long and required approximately 2700 CPU core-years \cite{RSA250}.
+In order to fully grasp the impact of Shor's algorithm, let's first consider the best known classical algorithm for solving these problems. The General Number Field Sieve (GNFS) operates in sub-exponential but superpolynomial time \cite{GNFS}, which means that every additional digit in an integer makes the factorization time disproportionately longer. While significantly faster than naive approaches, the computational cost still grows at an infeasible rate for larger key sizes. The largest RSA integer factored to date is RSA-250, an 829-bit number factored in February 2020 using CADO-NFS, an optimized software implementation of GNFS \cite{CADO-NFS}. This required approximately 2700 CPU core-years \cite{RSA250}, illustrating that classical factoring remains computationally prohibitive at the key sizes used in practice.
+
 
 Shor's algorithm completely demolishes this notion of infeasability. By leveraging the principles of quantum mechanics, it is able to factor large integers and solve discrete logarithms in polynomial time. It accomplishes this by reducing the problem into a period-finding problem. Given an integer $N$, the algorithm selects a random value and constructs a function whose period is related to the factors of $N$. While finding such periods is computationally difficult for classical computers, quantum computers can solve this efficiently using the Quantum Fourier Transform (QFT).
 
@@ -89,11 +92,11 @@ In the context of cryptography, Grover's algorithm impacts symmetric-key primiti
 It is also important to note that practical implementations of Grover's algorithm face significant overhead due to error correction and circuit depth requirements, which further limits its near-term applicability. But it remains a critical consideration when evaluating the long-term security of symmetric cryptographic systems.
 
 \subsubsection{``Harvest now, decrypt later.''}
-A common misconception about the quantum threat is that it only becomes relevant when sufficiently large quantum computers become available. This overlooks an already active risk model known as the ``harvest now, decrypt later'' (HNDL) \cite{hndl}.
+A common misconception about the quantum threat is that it only becomes relevant when sufficiently large quantum computers become available, but this misconception overlooks an already active risk model known as the ``harvest now, decrypt later'' (HNDL) \cite{hndl}.
 
-In this risk model, an adversary intercepts and stores encrypted communication today with the intention of decrypting them in the future once sufficiently powerful quantum computers exist. This strategy is particularly concerning for data with long-term confidentiality requirements, such as government communications, intellectual property, personal data, and critical infrastructure information. 
+In this model, an adversary intercepts and stores encrypted communication today with the intention of decrypting them in the future once sufficiently powerful quantum computers exist. This strategy is particularly concerning for data with long-term confidentiality requirements, such as government communications, intellectual property, personal data, and critical infrastructure information. 
 
-It is important to understand what part of modern encrypted communication is vulnerable in this context. While data at rest is often protected by symmetric encryption algorithms such as AES, which are considered more resistant to quantum attacks, the asymmetric public-key algorithms used during key exchange are the primary target. If an adversary can intercept the key exchange step of a session protected by TLS for example, they can store it and later use a quantum computer to recover the symmetric session key and decrypt the entire communication. The implication is that even data which appears to be well-protected at rest may be vulnerable if the key exchange that established its protection was recorded.
+It is important to understand what part of modern encrypted communication is vulnerable in this context. While data at rest is protected by symmetric encryption algorithms such as AES, which are considered resistant to quantum attacks, the asymmetric public-key algorithms used during the key exchange are the primary target. If an adversary can intercept the key exchange step of a session protected by TLS for example, they can store it and later use a quantum computer to recover the symmetric session key and decrypt all the session data. The implication is that even data which appears to be well-protected at rest may be vulnerable if the key exchange that established its protection was recorded.
 
 (Example of HNDL: Recent BGP hijackings)
 
@@ -105,19 +108,19 @@ In Europe, the European Commission published a coordinated PQC implementation ro
 
 At the standards level, NIST's deprecation timelines add further urgency. Classical quantum-vulnerable algorithms providing less than 128 bits of security are set to be deprecated after 2030 and disallowed after 2035, with algorithms above the 128-bit level set to follow the same eventual prohibition \cite{Moody2025PQCRoadAhead}.
 
-In summary, the ``harvest now, decrypt later'' threat establishes that the urgency of post-quantum migration is determined not by when quantum computers will arrive, but by the confidentiality requirements of data being transmitted and stored today. The combination of already-active data collection, long cryptographic migration timelines, and firm regulatory deadlines means that organizations handling sensitive data must treat the transition to quantum-resistant cryptography as an active and ongoing priority.
+In summary, the ``harvest now, decrypt later'' threat establishes that the urgency of post-quantum migration is determined not only by the arrival of quantum computers, but also by the confidentiality requirements of data being transmitted and stored today. The combination of already-active data collection, long cryptographic migration timelines, and firm regulatory deadlines means that organizations handling sensitive data must treat the transition to quantum-resistant cryptography as an active and ongoing priority.
 
 \subsection{Post-Quantum Cryptography}
 Post-Quantum Cryptography (PQC) refers to cryptographic algorithms that are designed to remain secure against attacks from both classical and quantum computers. The goal is to replace or complement current cryptographic primitives such as RSA, Diffie-Hellman, and ECC. In many cases, PQC schemes are designed to be integrated into existing protocols with minimal changes, although this still requires adaptations due to fundamental differences in protocol logic and accommodation for larger key sizes.
 
-Most PQC algorithms are based on mathematical problems that are believed to be hard even for quantum computers. The main categories include lattice-based, code-based, multivariate, and hash-based cryptography. This thesis focuses on the two NIST-selected approaches: lattice-based cryptography (ML-KEM) and code-based cryptography (HQC).
+PQC algorithms are based on mathematical problems that are believed to be hard even for quantum computers. The main categories include lattice-based, code-based, multivariate, and hash-based cryptography. This thesis focuses on the two NIST-selected approaches: lattice-based cryptography (ML-KEM) and code-based cryptography (HQC).
 
-\subsubsection{Lattice-Based Cryptography (CRYSTALS-Kyber / ML-KEM)}
+\subsubsection{Lattice-Based Cryptography (ML-KEM)}
 Formerly known as CRYSTALS-Kyber \cite{kyber}, now standardized under the name ML-KEM (Module-Lattice-Based Key-Encapsulation Mechanism) in the Federal Information Processing Standards (FIPS) publication 203 \cite{mlkem}, is a lattice-based KEM finalized by NIST in August 2024.
 
 ML-KEM is based on the hardness of lattice problems, specifically the so-called Module Learning With Errors (MLWE) problem. The core idea is that a system of linear equations with a small amount of added random noise is computationally hard to solve, even for a quantum computer.
 
-One of the main advantages of ML-KEM is its strong performance and relatively moderate key sizes when compared to other PQC candidates. For example, ML-KEM-768 has a public key size of around 1,184 bytes, which is manageable in protocols like TLS. Key generation and encapsulation are also significantly faster than RSA. These properties make ML-KEM suitable for practical deployment, which is why NIST selected it as the primary standard for post-quantum key establishment.
+One of the main advantages of ML-KEM is its strong performance and relatively moderate key sizes when compared to other PQC candidates. For example, ML-KEM-768 has a public key size of around \qty{1184}{bytes}, which is manageable in protocols like TLS. Key generation and encapsulation are also significantly faster than RSA. These properties make ML-KEM suitable for practical deployment, which is why NIST selected it as the primary standard for post-quantum key establishment.
 
 \subsubsection{Code-Based Cryptography (Hamming Quasi-Cyclic)}
 Hamming Quasi-Cyclic (HQC) \cite{hqc} is a code-based KEM selected by NIST in March 2025 as a backup standard to ML-KEM \cite{Moody2025NISTIR8545}. A draft standard is expected in 2026, with finalization planned for 2027.

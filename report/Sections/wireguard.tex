@@ -2,7 +2,7 @@
 \section{WireGuard}
 WireGuard is a modern, free and open-source VPN protocol developed by Jason A. Donenfeld \cite{wireguard}, and first presented at the Network and Distributed System Security Symposium (NDSS) in 2017. It was conceived as a reaction to the complexity and bloat of existing VPN solutions such as IPsec and OpenVPN, that makes them notoriously difficult to configure correctly and whose large codebases make security auditing require significant effort. WireGuard's philosophy is therefore built around three core principles: simplicity, high performance, and strong cryptography.
 
-The primary C implementation of WireGuard is written in less than 4,000 lines of code, excluding cryptographic primitives, compared to the 100,000 to 600,000 lines of the OpenVPN and IPsec implementations. This makes the codebase small enough for a single person to read and understand in full, which has multiple direct benefits: a smaller attack surface, easier auditing, and fewer places for subtle bugs to hide.
+The primary C implementation of WireGuard is written in less than \num{4000} lines of code, excluding cryptographic primitives, compared to the \num{100000} to \num{600000} lines of the OpenVPN and IPsec implementations. This makes the codebase small enough for a single person to read and understand in full, which has multiple direct benefits: a smaller attack surface, easier auditing, and fewer places for subtle bugs to hide.
 
 Unlike IPsec or OpenVPN, WireGuard does not offer any choice of cryptographic primitives. The suite is fixed. This eliminates the risk of misconfiguration and the complexity of negotiating cipher suites. The protocol uses Curve25519 for key exchange, ChaCha20-Poly1305 for authenticated symmetric encryption, BLAKE2s for hashing, and SipHash24 for hashtable keys. 
 
@@ -17,18 +17,18 @@ WireGuard specifically uses the NoiseIK pattern. In this pattern, the initiator 
 
 \subsection{Handshake and Cryptographic Primitives}
 
-Optional pre-shared key
+Optional pre-shared key...
 
 The handshake uses the following set of modern cryptographic primitives:
 \begin{itemize}
-    \item \textbf{Curve25519} for Diffie-Hellman key exchange. Curve25519 is an elliptic-curve DH function designed for both high performance and resistance to implementation errors. A static Curve25519 key pair is only 32 bytes, making it compact enough to fit easily in protocol messages.
+    \item \textbf{Curve25519} for Diffie-Hellman key exchange. Curve25519 is an elliptic-curve DH function designed for both high performance and resistance to implementation errors. A static Curve25519 key is only \qty{32}{bytes}, making it compact enough to fit easily in protocol messages.
     \item \textbf{ChaCha20-Poly1305} for authenticated symmetric encryption. ChaCha20 is a stream cipher and Poly1305 is a message authentication code; combined, they provide both confidentiality and integrity. This combination is particularly fast on hardware without AES acceleration, such as mobile processors.
     \item \textbf{BLAKE2s} for hashing. BLAKE2s is a fast cryptographic hash function used for key derivation and as part of the handshake's transcript hashing.
     \item \textbf{HKDF} for key derivation, built on top of BLAKE2s, used to derive the final session keys from the accumulated DH outputs.
 \end{itemize}
 
 \subsection{Go Implementation}
-While the main WireGuard implementation is a Linux kernel module written in C, a userspace implementation exists for platforms where kernel-level access is unavailable or undesirable. This  \texttt{wireguard-go}, the official userspace implementation written in Go. \texttt{wireguard-go} exposes the same configuration interface as the kernel module and is used on macOS, Windows, iOS, and Android.
+While the main WireGuard implementation is a Linux kernel module written in C, a userspace implementation exists for platforms where kernel-level access is unavailable or undesirable. This is \texttt{wireguard-go}, the official userspace implementation written in Go, which exposes the same configuration interface as the kernel module and is used on macOS, Windows, iOS, and Android.
 
 The main motivation for a userspace implementation in Go is portability and ease of integration. Go provides cross-platform support, a rich standard library, and easier interoperability with higher-level application code compared to kernel C code. This makes it straightforward to embed WireGuard as a library in a larger application, as is common in VPN clients.
 
