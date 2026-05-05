@@ -123,8 +123,8 @@ func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
 		return err
 	}
 
-	packet := make([]byte, MessageInitiationSize)
-	_ = msg.marshal(packet)
+	packet := make([]byte, peer.device.messageInitiationSize)
+	_ = msg.marshal(packet, peer.device.messageInitiationSize, peer.device.initiationEphemeralSize)
 	peer.cookieGenerator.AddMacs(packet)
 
 	peer.timersAnyAuthenticatedPacketTraversal()
@@ -152,8 +152,8 @@ func (peer *Peer) SendHandshakeResponse() error {
 		return err
 	}
 
-	packet := make([]byte, MessageResponseSize)
-	_ = response.marshal(packet)
+	packet := make([]byte, peer.device.messageResponseSize)
+	_ = response.marshal(packet, peer.device.messageResponseSize, peer.device.responseEphemeralSize)
 	peer.cookieGenerator.AddMacs(packet)
 
 	err = peer.BeginSymmetricSession()

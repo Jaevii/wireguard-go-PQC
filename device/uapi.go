@@ -8,6 +8,7 @@ package device
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"golang.zx2c4.com/wireguard/ipc"
+	"golang.zx2c4.com/wireguard/pqc/kems"
 )
 
 type IPCError struct {
@@ -89,6 +91,11 @@ func (device *Device) IpcGetOperation(w io.Writer) error {
 			keyf("private_key", (*[32]byte)(&device.staticIdentity.privateKey))
 		}
 
+		if len(device.staticIdentity.KEMpublicKey) > 0 {
+			sendf("kem_public_key=%s",
+				base64.StdEncoding.EncodeToString(device.staticIdentity.KEMpublicKey))
+		}
+
 		if device.net.port != 0 {
 			sendf("listen_port=%d", device.net.port)
 		}
@@ -102,6 +109,9 @@ func (device *Device) IpcGetOperation(w io.Writer) error {
 			peer.handshake.mutex.RLock()
 			keyf("public_key", (*[32]byte)(&peer.handshake.remoteStatic))
 			keyf("preshared_key", (*[32]byte)(&peer.handshake.presharedKey))
+			if len(peer.kemPublicKey) > 0 {
+				sendf("kem_public_key=%s", base64.StdEncoding.EncodeToString(peer.kemPublicKey))
+			}
 			peer.handshake.mutex.RUnlock()
 			sendf("protocol_version=1")
 			peer.endpoint.Lock()
@@ -396,6 +406,14 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		if value != "1" {
 			return ipcErrorf(ipc.IpcErrorInvalid, "invalid protocol version: %v", value)
 		}
+
+	case "kem_public_key":
+		device.log.Verbosef("%v - UAPI: Updating KEM public key", peer.Peer)
+		kemPub, err := base64.StdEncoding.DecodeString(value)
+		if err != nil {
+			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set kem_public_key: %w", err)
+		}
+		peer.kemPublicKey = kems.PublicKey(kemPub)
 
 	default:
 		return ipcErrorf(ipc.IpcErrorInvalid, "invalid UAPI peer key: %v", key)

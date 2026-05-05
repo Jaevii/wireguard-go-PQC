@@ -3,6 +3,7 @@ module golang.zx2c4.com/wireguard
 go 1.23.1
 
 require (
+	github.com/open-quantum-safe/liboqs-go v0.0.0-20260310140033-75451133b94a
 	golang.org/x/crypto v0.37.0
 	golang.org/x/net v0.39.0
 	golang.org/x/sys v0.32.0
@@ -12,6 +13,5 @@ require (
 
 require (
 	github.com/google/btree v1.1.2 // indirect
-	github.com/open-quantum-safe/liboqs-go v0.0.0-20260310140033-75451133b94a // indirect
 	golang.org/x/time v0.7.0 // indirect
 )

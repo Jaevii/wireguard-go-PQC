@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"golang.zx2c4.com/wireguard/conn"
+	"golang.zx2c4.com/wireguard/pqc/kems"
 )
 
 type Peer struct {
@@ -56,6 +57,9 @@ type Peer struct {
 	cookieGenerator             CookieGenerator
 	trieEntries                 list.List
 	persistentKeepaliveInterval atomic.Uint32
+
+	// PQC
+	kemPublicKey kems.PublicKey
 }
 
 func (device *Device) NewPeer(pk NoisePublicKey) (*Peer, error) {

@@ -18,6 +18,7 @@ import (
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
+	"golang.zx2c4.com/wireguard/pqc"
 	"golang.zx2c4.com/wireguard/tun"
 )
 
@@ -63,7 +64,33 @@ func main() {
 		return
 	}
 
-	warning()
+	// Handle --kem-info flag for benchmark.sh integration
+	if len(os.Args) == 2 && os.Args[1] == "--kem-info" {
+		cfg, err := pqc.ConfigFromEnv()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Output algorithm parameters for benchmark script
+		fmt.Printf("algorithm=%s\n", cfg.String())
+		if !cfg.IsClassic() {
+			kem := cfg.KEM()
+			fmt.Printf("pubkey_bytes=%d\n", kem.PublicKeySize())
+			fmt.Printf("ciphertext_bytes=%d\n", kem.CiphertextSize())
+			fmt.Printf("shared_secret_bytes=%d\n", kem.SharedSecretSize())
+		} else {
+			// Classical X25519 parameters
+			fmt.Printf("pubkey_bytes=32\n")
+			fmt.Printf("ciphertext_bytes=32\n")
+			fmt.Printf("shared_secret_bytes=32\n")
+		}
+		fmt.Printf("msg_initiation_bytes=%d\n", cfg.MessageInitiationSize())
+		fmt.Printf("msg_response_bytes=%d\n", cfg.MessageResponseSize())
+		fmt.Printf("msg_initiation_ephemeral_bytes=%d\n", cfg.InitiationEphemeralSize())
+		fmt.Printf("msg_response_ephemeral_bytes=%d\n", cfg.ResponseEphemeralSize())
+		return
+	}
 
 	var foreground bool
 	var interfaceName string

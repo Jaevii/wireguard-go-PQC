@@ -85,7 +85,7 @@ const (
 type MessageInitiation struct {
 	Type      uint32
 	Sender    uint32
-	Ephemeral NoisePublicKey
+	Ephemeral []byte
 	Static    [NoisePublicKeySize + poly1305.TagSize]byte
 	Timestamp [tai64n.TimestampSize + poly1305.TagSize]byte
 	MAC1      [blake2s.Size128]byte
@@ -96,7 +96,7 @@ type MessageResponse struct {
 	Type      uint32
 	Sender    uint32
 	Receiver  uint32
-	Ephemeral NoisePublicKey
+	Ephemeral []byte
 	Empty     [poly1305.TagSize]byte
 	MAC1      [blake2s.Size128]byte
 	MAC2      [blake2s.Size128]byte
@@ -118,66 +118,80 @@ type MessageCookieReply struct {
 
 var errMessageLengthMismatch = errors.New("message length mismatch")
 
-func (msg *MessageInitiation) unmarshal(b []byte) error {
-	if len(b) != MessageInitiationSize {
+func (msg *MessageInitiation) unmarshal(b []byte, expectedSize int, ephemeralSize int) error {
+	if len(b) != expectedSize {
 		return errMessageLengthMismatch
 	}
 
 	msg.Type = binary.LittleEndian.Uint32(b)
 	msg.Sender = binary.LittleEndian.Uint32(b[4:])
-	copy(msg.Ephemeral[:], b[8:])
-	copy(msg.Static[:], b[8+len(msg.Ephemeral):])
-	copy(msg.Timestamp[:], b[8+len(msg.Ephemeral)+len(msg.Static):])
-	copy(msg.MAC1[:], b[8+len(msg.Ephemeral)+len(msg.Static)+len(msg.Timestamp):])
-	copy(msg.MAC2[:], b[8+len(msg.Ephemeral)+len(msg.Static)+len(msg.Timestamp)+len(msg.MAC1):])
+
+	msg.Ephemeral = make([]byte, ephemeralSize)
+	copy(msg.Ephemeral, b[8:8+ephemeralSize])
+
+	base := 8 + ephemeralSize
+	copy(msg.Static[:], b[base:])
+	copy(msg.Timestamp[:], b[base+len(msg.Static):])
+	copy(msg.MAC1[:], b[base+len(msg.Static)+len(msg.Timestamp):])
+	copy(msg.MAC2[:], b[base+len(msg.Static)+len(msg.Timestamp)+len(msg.MAC1):])
 
 	return nil
 }
 
-func (msg *MessageInitiation) marshal(b []byte) error {
-	if len(b) != MessageInitiationSize {
+func (msg *MessageInitiation) marshal(b []byte, expectedSize int, ephemeralSize int) error {
+	if len(b) != expectedSize {
 		return errMessageLengthMismatch
 	}
 
 	binary.LittleEndian.PutUint32(b, msg.Type)
 	binary.LittleEndian.PutUint32(b[4:], msg.Sender)
-	copy(b[8:], msg.Ephemeral[:])
-	copy(b[8+len(msg.Ephemeral):], msg.Static[:])
-	copy(b[8+len(msg.Ephemeral)+len(msg.Static):], msg.Timestamp[:])
-	copy(b[8+len(msg.Ephemeral)+len(msg.Static)+len(msg.Timestamp):], msg.MAC1[:])
-	copy(b[8+len(msg.Ephemeral)+len(msg.Static)+len(msg.Timestamp)+len(msg.MAC1):], msg.MAC2[:])
+
+	copy(b[8:], msg.Ephemeral)
+
+	base := 8 + ephemeralSize
+	copy(b[base:], msg.Static[:])
+	copy(b[base+len(msg.Static):], msg.Timestamp[:])
+	copy(b[base+len(msg.Static)+len(msg.Timestamp):], msg.MAC1[:])
+	copy(b[base+len(msg.Static)+len(msg.Timestamp)+len(msg.MAC1):], msg.MAC2[:])
 
 	return nil
 }
 
-func (msg *MessageResponse) unmarshal(b []byte) error {
-	if len(b) != MessageResponseSize {
+func (msg *MessageResponse) unmarshal(b []byte, expectedSize int, ephemeralSize int) error {
+	if len(b) != expectedSize {
 		return errMessageLengthMismatch
 	}
 
 	msg.Type = binary.LittleEndian.Uint32(b)
 	msg.Sender = binary.LittleEndian.Uint32(b[4:])
 	msg.Receiver = binary.LittleEndian.Uint32(b[8:])
-	copy(msg.Ephemeral[:], b[12:])
-	copy(msg.Empty[:], b[12+len(msg.Ephemeral):])
-	copy(msg.MAC1[:], b[12+len(msg.Ephemeral)+len(msg.Empty):])
-	copy(msg.MAC2[:], b[12+len(msg.Ephemeral)+len(msg.Empty)+len(msg.MAC1):])
+
+	msg.Ephemeral = make([]byte, ephemeralSize)
+	copy(msg.Ephemeral, b[12:12+ephemeralSize])
+
+	base := 12 + ephemeralSize
+	copy(msg.Empty[:], b[base:])
+	copy(msg.MAC1[:], b[base+len(msg.Empty):])
+	copy(msg.MAC2[:], b[base+len(msg.Empty)+len(msg.MAC1):])
 
 	return nil
 }
 
-func (msg *MessageResponse) marshal(b []byte) error {
-	if len(b) != MessageResponseSize {
+func (msg *MessageResponse) marshal(b []byte, expectedSize int, ephemeralSize int) error {
+	if len(b) != expectedSize {
 		return errMessageLengthMismatch
 	}
 
 	binary.LittleEndian.PutUint32(b, msg.Type)
 	binary.LittleEndian.PutUint32(b[4:], msg.Sender)
 	binary.LittleEndian.PutUint32(b[8:], msg.Receiver)
-	copy(b[12:], msg.Ephemeral[:])
-	copy(b[12+len(msg.Ephemeral):], msg.Empty[:])
-	copy(b[12+len(msg.Ephemeral)+len(msg.Empty):], msg.MAC1[:])
-	copy(b[12+len(msg.Ephemeral)+len(msg.Empty)+len(msg.MAC1):], msg.MAC2[:])
+
+	copy(b[12:], msg.Ephemeral)
+
+	base := 12 + ephemeralSize
+	copy(b[base:], msg.Empty[:])
+	copy(b[base+len(msg.Empty):], msg.MAC1[:])
+	copy(b[base+len(msg.Empty)+len(msg.MAC1):], msg.MAC2[:])
 
 	return nil
 }
@@ -223,6 +237,11 @@ type Handshake struct {
 	lastTimestamp             tai64n.Timestamp
 	lastInitiationConsumption time.Time
 	lastSentHandshake         time.Time
+
+	// PQC
+	kemEphemeralPriv []byte // initiator only: ephemeral KEM private key.
+	kemSharedSecret  []byte // both sides: KEM shared secret.
+	remoteKEM        []byte // responder only: initiator's ephemeral KEM public key.
 }
 
 var (
@@ -248,6 +267,13 @@ func (h *Handshake) Clear() {
 	setZero(h.remoteEphemeral[:])
 	setZero(h.chainKey[:])
 	setZero(h.hash[:])
+	// PQC
+	setZero(h.kemEphemeralPriv)
+	setZero(h.kemSharedSecret)
+	setZero(h.remoteKEM)
+	h.kemEphemeralPriv = nil
+	h.kemSharedSecret = nil
+	h.remoteKEM = nil
 	h.localIndex = 0
 	h.state = handshakeZeroed
 }
@@ -286,9 +312,10 @@ func (device *Device) CreateMessageInitiation(peer *Peer) (*MessageInitiation, e
 
 	handshake.mixHash(handshake.remoteStatic[:])
 
+	pk := handshake.localEphemeral.publicKey()
 	msg := MessageInitiation{
 		Type:      MessageInitiationType,
-		Ephemeral: handshake.localEphemeral.publicKey(),
+		Ephemeral: pk[:],
 	}
 
 	handshake.mixKey(msg.Ephemeral[:])
@@ -333,6 +360,18 @@ func (device *Device) CreateMessageInitiation(peer *Peer) (*MessageInitiation, e
 	handshake.localIndex = msg.Sender
 
 	handshake.mixHash(msg.Timestamp[:])
+
+	// PQC
+	if device.pqcConfig.IsHybrid() {
+		if err := hybridMixInitiatorKEM(
+			handshake,
+			&msg,
+			device.pqcConfig.KEM(),
+		); err != nil {
+			return nil, err
+		}
+	}
+
 	handshake.state = handshakeInitiationCreated
 	return &msg, nil
 }
@@ -350,14 +389,18 @@ func (device *Device) ConsumeMessageInitiation(msg *MessageInitiation) *Peer {
 	device.staticIdentity.RLock()
 	defer device.staticIdentity.RUnlock()
 
+	x25519Eph := msg.Ephemeral[:NoisePublicKeySize]
+
 	mixHash(&hash, &InitialHash, device.staticIdentity.publicKey[:])
-	mixHash(&hash, &hash, msg.Ephemeral[:])
-	mixKey(&chainKey, &InitialChainKey, msg.Ephemeral[:])
+	mixHash(&hash, &hash, x25519Eph)
+	mixKey(&chainKey, &InitialChainKey, x25519Eph)
 
 	// decrypt static key
 	var peerPK NoisePublicKey
 	var key [chacha20poly1305.KeySize]byte
-	ss, err := device.staticIdentity.privateKey.sharedSecret(msg.Ephemeral)
+	var ephemeral NoisePublicKey
+	copy(ephemeral[:], x25519Eph)
+	ss, err := device.staticIdentity.privateKey.sharedSecret(ephemeral)
 	if err != nil {
 		return nil
 	}
@@ -423,7 +466,7 @@ func (device *Device) ConsumeMessageInitiation(msg *MessageInitiation) *Peer {
 	handshake.hash = hash
 	handshake.chainKey = chainKey
 	handshake.remoteIndex = msg.Sender
-	handshake.remoteEphemeral = msg.Ephemeral
+	handshake.remoteEphemeral = ephemeral
 	if timestamp.After(handshake.lastTimestamp) {
 		handshake.lastTimestamp = timestamp
 	}
@@ -432,6 +475,18 @@ func (device *Device) ConsumeMessageInitiation(msg *MessageInitiation) *Peer {
 		handshake.lastInitiationConsumption = now
 	}
 	handshake.state = handshakeInitiationConsumed
+
+	// PQC
+	if device.pqcConfig.IsHybrid() {
+		if err := hybridMixResponderKEM(
+			handshake,
+			msg,
+			device.pqcConfig.KEM(),
+		); err != nil {
+			handshake.mutex.Unlock()
+			return nil
+		}
+	}
 
 	handshake.mutex.Unlock()
 
@@ -470,7 +525,8 @@ func (device *Device) CreateMessageResponse(peer *Peer) (*MessageResponse, error
 	if err != nil {
 		return nil, err
 	}
-	msg.Ephemeral = handshake.localEphemeral.publicKey()
+	pk := handshake.localEphemeral.publicKey()
+	msg.Ephemeral = pk[:]
 	handshake.mixHash(msg.Ephemeral[:])
 	handshake.mixKey(msg.Ephemeral[:])
 
@@ -503,6 +559,13 @@ func (device *Device) CreateMessageResponse(peer *Peer) (*MessageResponse, error
 	aead, _ := chacha20poly1305.New(key[:])
 	aead.Seal(msg.Empty[:0], ZeroNonce[:], nil, handshake.hash[:])
 	handshake.mixHash(msg.Empty[:])
+
+	// PQC
+	if device.pqcConfig.IsHybrid() {
+		if err := hybridMixResponseKEM(handshake, &msg, device.pqcConfig.KEM()); err != nil {
+			return nil, err
+		}
+	}
 
 	handshake.state = handshakeResponseCreated
 
@@ -542,19 +605,24 @@ func (device *Device) ConsumeMessageResponse(msg *MessageResponse) *Peer {
 		device.staticIdentity.RLock()
 		defer device.staticIdentity.RUnlock()
 
+		x25519Eph := msg.Ephemeral[:NoisePublicKeySize]
+
+		var ephemeral NoisePublicKey
+		copy(ephemeral[:], x25519Eph)
+
 		// finish 3-way DH
 
-		mixHash(&hash, &handshake.hash, msg.Ephemeral[:])
-		mixKey(&chainKey, &handshake.chainKey, msg.Ephemeral[:])
+		mixHash(&hash, &handshake.hash, x25519Eph)
+		mixKey(&chainKey, &handshake.chainKey, x25519Eph)
 
-		ss, err := handshake.localEphemeral.sharedSecret(msg.Ephemeral)
+		ss, err := handshake.localEphemeral.sharedSecret(ephemeral)
 		if err != nil {
 			return false
 		}
 		mixKey(&chainKey, &chainKey, ss[:])
 		setZero(ss[:])
 
-		ss, err = device.staticIdentity.privateKey.sharedSecret(msg.Ephemeral)
+		ss, err = device.staticIdentity.privateKey.sharedSecret(ephemeral)
 		if err != nil {
 			return false
 		}
@@ -582,6 +650,14 @@ func (device *Device) ConsumeMessageResponse(msg *MessageResponse) *Peer {
 			return false
 		}
 		mixHash(&hash, &hash, msg.Empty[:])
+
+		// PQC
+		if device.pqcConfig.IsHybrid() {
+			if err := hybridMixInitiatorResponse(handshake, msg, &hash, device.pqcConfig.KEM()); err != nil {
+				return false
+			}
+		}
+
 		return true
 	}()
 
@@ -622,23 +698,38 @@ func (peer *Peer) BeginSymmetricSession() error {
 	var recvKey [chacha20poly1305.KeySize]byte
 
 	if handshake.state == handshakeResponseConsumed {
-		KDF2(
-			&sendKey,
-			&recvKey,
-			handshake.chainKey[:],
-			nil,
-		)
 		isInitiator = true
 	} else if handshake.state == handshakeResponseCreated {
-		KDF2(
-			&recvKey,
-			&sendKey,
-			handshake.chainKey[:],
-			nil,
-		)
 		isInitiator = false
 	} else {
 		return fmt.Errorf("invalid state for keypair derivation: %v", handshake.state)
+	}
+
+	if device.pqcConfig.IsHybrid() {
+		if handshake.kemSharedSecret == nil {
+			return errors.New("hybrid mode enabled but KEM shared secret is missing")
+		}
+		// Derive session keys using BOTH classical chain key and KEM shared secret.
+		// An adversary must break BOTH X25519 and the KEM to recover the session key.
+		// KDF2 here is HKDF with chainKey as salt and kemSS as IKM (or vice versa —
+		// the important property is that both are necessary inputs).
+		var combinedChainKey [blake2s.Size]byte
+		KDF1(&combinedChainKey, handshake.chainKey[:], handshake.kemSharedSecret)
+		setZero(handshake.kemSharedSecret)
+		handshake.kemSharedSecret = nil
+
+		if isInitiator {
+			KDF2(&sendKey, &recvKey, combinedChainKey[:], nil)
+		} else {
+			KDF2(&recvKey, &sendKey, combinedChainKey[:], nil)
+		}
+		setZero(combinedChainKey[:])
+	} else {
+		if isInitiator {
+			KDF2(&sendKey, &recvKey, handshake.chainKey[:], nil)
+		} else {
+			KDF2(&recvKey, &sendKey, handshake.chainKey[:], nil)
+		}
 	}
 
 	// zero handshake
@@ -646,6 +737,14 @@ func (peer *Peer) BeginSymmetricSession() error {
 	setZero(handshake.chainKey[:])
 	setZero(handshake.hash[:]) // Doesn't necessarily need to be zeroed. Could be used for something interesting down the line.
 	setZero(handshake.localEphemeral[:])
+	// PQC
+	setZero(handshake.kemEphemeralPriv)
+	setZero(handshake.kemSharedSecret)
+	setZero(handshake.remoteKEM)
+	handshake.kemEphemeralPriv = nil
+	handshake.kemSharedSecret = nil
+	handshake.remoteKEM = nil
+
 	peer.handshake.state = handshakeZeroed
 
 	// create AEAD instances

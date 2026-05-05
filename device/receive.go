@@ -188,12 +188,12 @@ func (device *Device) RoutineReceiveIncoming(maxBatchSize int, recv conn.Receive
 			// otherwise it is a fixed size & handshake related packet
 
 			case MessageInitiationType:
-				if len(packet) != MessageInitiationSize {
+				if len(packet) != device.messageInitiationSize {
 					continue
 				}
 
 			case MessageResponseType:
-				if len(packet) != MessageResponseSize {
+				if len(packet) != device.messageResponseSize {
 					continue
 				}
 
@@ -351,7 +351,7 @@ func (device *Device) RoutineHandshake(id int) {
 			// unmarshal
 
 			var msg MessageInitiation
-			err := msg.unmarshal(elem.packet)
+			err := msg.unmarshal(elem.packet, device.messageInitiationSize, device.initiationEphemeralSize)
 			if err != nil {
 				device.log.Errorf("Failed to decode initiation message")
 				goto skip
@@ -383,7 +383,7 @@ func (device *Device) RoutineHandshake(id int) {
 			// unmarshal
 
 			var msg MessageResponse
-			err := msg.unmarshal(elem.packet)
+			err := msg.unmarshal(elem.packet, device.messageResponseSize, device.responseEphemeralSize)
 			if err != nil {
 				device.log.Errorf("Failed to decode response message")
 				goto skip

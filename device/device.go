@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"golang.zx2c4.com/wireguard/conn"
+	"golang.zx2c4.com/wireguard/pqc"
 	"golang.zx2c4.com/wireguard/ratelimiter"
 	"golang.zx2c4.com/wireguard/rwcancel"
 	"golang.zx2c4.com/wireguard/tun"
@@ -51,6 +52,10 @@ type Device struct {
 		sync.RWMutex
 		privateKey NoisePrivateKey
 		publicKey  NoisePublicKey
+
+		// PQC
+		KEMprivateKey []byte
+		KEMpublicKey  []byte
 	}
 
 	peers struct {
@@ -89,6 +94,13 @@ type Device struct {
 	ipcMutex sync.RWMutex
 	closed   chan struct{}
 	log      *Logger
+
+	// PQC
+	pqcConfig               pqc.Config
+	messageInitiationSize   int
+	messageResponseSize     int
+	initiationEphemeralSize int
+	responseEphemeralSize   int
 }
 
 // deviceState represents the state of a Device.
@@ -285,6 +297,88 @@ func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
 	device := new(Device)
 	device.state.state.Store(uint32(deviceStateDown))
 	device.closed = make(chan struct{})
+
+	//PQC
+	cfg, err := pqc.ConfigFromEnv()
+	if err != nil {
+		logger.Errorf("Failed to load PQC config from env, starting device with default classical mode", err)
+	}
+	device.pqcConfig = cfg
+	device.messageInitiationSize = cfg.MessageInitiationSize()
+	device.messageResponseSize = cfg.MessageResponseSize()
+	device.initiationEphemeralSize = cfg.InitiationEphemeralSize()
+	device.responseEphemeralSize = cfg.ResponseEphemeralSize()
+
+	if !cfg.IsClassic() {
+		// Generate KEM keypair
+		device.staticIdentity.KEMpublicKey, device.staticIdentity.KEMprivateKey, err = device.pqcConfig.KEM().GenerateKeypair()
+		if err != nil {
+			logger.Errorf("Failed to generate KEM keypair", err)
+		}
+	}
+
+	device.log = logger
+	device.net.bind = bind
+	device.tun.device = tunDevice
+	mtu, err := device.tun.device.MTU()
+	if err != nil {
+		device.log.Errorf("Trouble determining MTU, assuming default: %v", err)
+		mtu = DefaultMTU
+	}
+	device.tun.mtu.Store(int32(mtu))
+	device.peers.keyMap = make(map[NoisePublicKey]*Peer)
+	device.rate.limiter.Init()
+	device.indexTable.Init()
+
+	device.PopulatePools()
+
+	// create queues
+
+	device.queue.handshake = newHandshakeQueue()
+	device.queue.encryption = newOutboundQueue()
+	device.queue.decryption = newInboundQueue()
+
+	// start workers
+
+	cpus := runtime.NumCPU()
+	device.state.stopping.Wait()
+	device.queue.encryption.wg.Add(cpus) // One for each RoutineHandshake
+	for i := 0; i < cpus; i++ {
+		go device.RoutineEncryption(i + 1)
+		go device.RoutineDecryption(i + 1)
+		go device.RoutineHandshake(i + 1)
+	}
+
+	device.state.stopping.Add(1)      // RoutineReadFromTUN
+	device.queue.encryption.wg.Add(1) // RoutineReadFromTUN
+	go device.RoutineReadFromTUN()
+	go device.RoutineTUNEventReader()
+
+	return device
+}
+
+// Create new device with selected config
+func NewDeviceWithConfig(tunDevice tun.Device, bind conn.Bind, logger *Logger, cfg pqc.Config) *Device {
+	device := new(Device)
+	device.state.state.Store(uint32(deviceStateDown))
+	device.closed = make(chan struct{})
+
+	//PQC
+	device.pqcConfig = cfg
+	device.messageInitiationSize = cfg.MessageInitiationSize()
+	device.messageResponseSize = cfg.MessageResponseSize()
+	device.initiationEphemeralSize = cfg.InitiationEphemeralSize()
+	device.responseEphemeralSize = cfg.ResponseEphemeralSize()
+
+	if !cfg.IsClassic() {
+		pub, priv, err := cfg.KEM().GenerateKeypair()
+		if err != nil {
+			logger.Errorf("Failed to generate KEM keypair: %v", err)
+		}
+		device.staticIdentity.KEMpublicKey = pub
+		device.staticIdentity.KEMprivateKey = priv
+	}
+
 	device.log = logger
 	device.net.bind = bind
 	device.tun.device = tunDevice
