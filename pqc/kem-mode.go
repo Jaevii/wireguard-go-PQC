@@ -126,27 +126,28 @@ func (c Config) String() string { return c.name }
 //
 //	Classical:  [Type:4][Sender:4][X25519_eph:32][Static+tag:48][Timestamp+tag:24][MAC1:16][MAC2:16] = 148
 //	Hybrid:     [Type:4][Sender:4][X25519_eph:32][KEM_pk:N][Static+tag:48][Timestamp+tag:24][MAC1:16][MAC2:16]
-//	Pure KEM:   [Type:4][Sender:4][KEM_pk:N][Static+tag:48][Timestamp+tag:24][MAC1:16][MAC2:16]
+//	Pure KEM:   [Type:4][Sender:4][KEM_pk:N][KEM_ct:M][KEM_Static+tag:N+16][Timestamp+tag:24][MAC1:16][MAC2:16]
 func (c Config) MessageInitiationSize() int {
 	const (
 		x25519Size      = 32
 		typeAndSender   = 8
-		staticAndTag    = x25519Size + poly1305.TagSize           // 32 + 16
-		timestampAndTag = tai64n.TimestampSize + poly1305.TagSize // 12 + 12
-		mac1            = blake2s.Size128                         // 16
-		mac2            = blake2s.Size128                         // 16
-		fixedTrailer    = staticAndTag + timestampAndTag + mac1 + mac2
+		staticAndTag    = x25519Size + poly1305.TagSize
+		timestampAndTag = tai64n.TimestampSize + poly1305.TagSize
+		mac1            = blake2s.Size128
+		mac2            = blake2s.Size128
+		trailer         = staticAndTag + timestampAndTag + mac1 + mac2
 	)
-
 	switch {
 	case c.IsClassic():
-		return typeAndSender + x25519Size + fixedTrailer
+		return typeAndSender + x25519Size + trailer
 	case c.IsPureKEM():
-		// X25519 ephemeral is gone — replaced entirely by KEM public key
-		return typeAndSender + c.kem.PublicKeySize() + fixedTrailer
+		return typeAndSender +
+			c.kem.PublicKeySize() +
+			c.kem.CiphertextSize() +
+			c.MessageStaticSize() +
+			timestampAndTag + mac1 + mac2
 	default: // Hybrid
-		// X25519 ephemeral kept, KEM public key appended after it
-		return typeAndSender + x25519Size + c.kem.PublicKeySize() + fixedTrailer
+		return typeAndSender + x25519Size + c.kem.PublicKeySize() + trailer
 	}
 }
 
@@ -175,6 +176,22 @@ func (c Config) MessageResponseSize() int {
 	default: // Hybrid
 		return typeAndSenderReceiver + x25519Size + c.kem.CiphertextSize() + fixedTrailer
 	}
+}
+
+func (c Config) MessageStaticSize() int {
+	if c.IsPureKEM() {
+		return c.kem.PublicKeySize() + poly1305.TagSize
+	}
+	return 32 + poly1305.TagSize // 48
+}
+
+// MessageKEMCTSize returns the size of the KEMCT field in a MessageInitiation.
+// Zero for classical and hybrid modes.
+func (c Config) MessageKEMCTSize() int {
+	if c.IsPureKEM() {
+		return c.kem.CiphertextSize()
+	}
+	return 0
 }
 
 // InitiationEphemeralSize returns the byte length of the ephemeral field

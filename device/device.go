@@ -61,6 +61,7 @@ type Device struct {
 	peers struct {
 		sync.RWMutex // protects keyMap
 		keyMap       map[NoisePublicKey]*Peer
+		kemKeyMap    map[string]*Peer
 	}
 
 	rate struct {
@@ -99,6 +100,8 @@ type Device struct {
 	pqcConfig               pqc.Config
 	messageInitiationSize   int
 	messageResponseSize     int
+	messageStaticSize       int
+	messageKEMCTSize        int
 	initiationEphemeralSize int
 	responseEphemeralSize   int
 }
@@ -143,8 +146,11 @@ func removePeerLocked(device *Device, peer *Peer, key NoisePublicKey) {
 	device.allowedips.RemoveByPeer(peer)
 	peer.Stop()
 
-	// remove from peer map
+	// remove from peer maps
 	delete(device.peers.keyMap, key)
+	if len(peer.kemPublicKey) > 0 {
+		delete(device.peers.kemKeyMap, string(peer.kemPublicKey))
+	}
 }
 
 // changeState attempts to change the device state to match want.
@@ -306,15 +312,21 @@ func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
 	device.pqcConfig = cfg
 	device.messageInitiationSize = cfg.MessageInitiationSize()
 	device.messageResponseSize = cfg.MessageResponseSize()
+	device.messageStaticSize = cfg.MessageStaticSize()
+	device.messageKEMCTSize = cfg.MessageKEMCTSize()
 	device.initiationEphemeralSize = cfg.InitiationEphemeralSize()
 	device.responseEphemeralSize = cfg.ResponseEphemeralSize()
 
 	if !cfg.IsClassic() {
-		// Generate KEM keypair
-		device.staticIdentity.KEMpublicKey, device.staticIdentity.KEMprivateKey, err = device.pqcConfig.KEM().GenerateKeypair()
+		pub, priv, err := cfg.KEM().GenerateKeypair()
 		if err != nil {
-			logger.Errorf("Failed to generate KEM keypair", err)
+			logger.Errorf("Failed to generate KEM keypair: %v", err)
+			// NewDevice has no error return; a missing KEM keypair makes the device
+			// unusable, so panic rather than silently hand back a broken device.
+			panic("wireguard: KEM keypair generation failed: " + err.Error())
 		}
+		device.staticIdentity.KEMpublicKey = pub
+		device.staticIdentity.KEMprivateKey = priv
 	}
 
 	device.log = logger
@@ -327,6 +339,7 @@ func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
 	}
 	device.tun.mtu.Store(int32(mtu))
 	device.peers.keyMap = make(map[NoisePublicKey]*Peer)
+	device.peers.kemKeyMap = make(map[string]*Peer)
 	device.rate.limiter.Init()
 	device.indexTable.Init()
 
@@ -367,6 +380,8 @@ func NewDeviceWithConfig(tunDevice tun.Device, bind conn.Bind, logger *Logger, c
 	device.pqcConfig = cfg
 	device.messageInitiationSize = cfg.MessageInitiationSize()
 	device.messageResponseSize = cfg.MessageResponseSize()
+	device.messageStaticSize = cfg.MessageStaticSize()
+	device.messageKEMCTSize = cfg.MessageKEMCTSize()
 	device.initiationEphemeralSize = cfg.InitiationEphemeralSize()
 	device.responseEphemeralSize = cfg.ResponseEphemeralSize()
 
@@ -374,6 +389,9 @@ func NewDeviceWithConfig(tunDevice tun.Device, bind conn.Bind, logger *Logger, c
 		pub, priv, err := cfg.KEM().GenerateKeypair()
 		if err != nil {
 			logger.Errorf("Failed to generate KEM keypair: %v", err)
+			// NewDevice has no error return; a missing KEM keypair makes the device
+			// unusable, so panic rather than silently hand back a broken device.
+			panic("wireguard: KEM keypair generation failed: " + err.Error())
 		}
 		device.staticIdentity.KEMpublicKey = pub
 		device.staticIdentity.KEMprivateKey = priv
@@ -389,6 +407,7 @@ func NewDeviceWithConfig(tunDevice tun.Device, bind conn.Bind, logger *Logger, c
 	}
 	device.tun.mtu.Store(int32(mtu))
 	device.peers.keyMap = make(map[NoisePublicKey]*Peer)
+	device.peers.kemKeyMap = make(map[string]*Peer)
 	device.rate.limiter.Init()
 	device.indexTable.Init()
 
@@ -439,11 +458,15 @@ func (device *Device) LookupPeer(pk NoisePublicKey) *Peer {
 	return device.peers.keyMap[pk]
 }
 
+func (device *Device) LookupPeerByKEMKey(kemPub []byte) *Peer {
+	device.peers.RLock()
+	defer device.peers.RUnlock()
+	return device.peers.kemKeyMap[string(kemPub)]
+}
+
 func (device *Device) RemovePeer(key NoisePublicKey) {
 	device.peers.Lock()
 	defer device.peers.Unlock()
-	// stop peer and remove from routing
-
 	peer, ok := device.peers.keyMap[key]
 	if ok {
 		removePeerLocked(device, peer, key)
@@ -453,12 +476,11 @@ func (device *Device) RemovePeer(key NoisePublicKey) {
 func (device *Device) RemoveAllPeers() {
 	device.peers.Lock()
 	defer device.peers.Unlock()
-
 	for key, peer := range device.peers.keyMap {
 		removePeerLocked(device, peer, key)
 	}
-
 	device.peers.keyMap = make(map[NoisePublicKey]*Peer)
+	device.peers.kemKeyMap = make(map[string]*Peer)
 }
 
 func (device *Device) Close() {

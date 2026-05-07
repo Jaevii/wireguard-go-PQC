@@ -351,7 +351,7 @@ func (device *Device) RoutineHandshake(id int) {
 			// unmarshal
 
 			var msg MessageInitiation
-			err := msg.unmarshal(elem.packet, device.messageInitiationSize, device.initiationEphemeralSize)
+			err := msg.unmarshal(elem.packet, device.messageInitiationSize, device.initiationEphemeralSize, device.messageKEMCTSize, device.messageStaticSize)
 			if err != nil {
 				device.log.Errorf("Failed to decode initiation message")
 				goto skip

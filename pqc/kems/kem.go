@@ -74,12 +74,14 @@ func (k *liboqsKEM) Encapsulate(peerPK PublicKey) ([]byte, []byte, error) {
 }
 
 func (k *liboqsKEM) Decapsulate(sk PrivateKey, ct []byte) ([]byte, error) {
-	handle, err := k.newHandle([]byte(sk))
+	// Copy sk into a local buffer so handle.Clean() cannot zero the caller's key material
+	skCopy := make([]byte, len(sk))
+	copy(skCopy, sk)
+	handle, err := k.newHandle(skCopy)
 	if err != nil {
 		return nil, err
 	}
 	defer handle.Clean()
-
 	ss, err := handle.DecapSecret(ct)
 	if err != nil {
 		return nil, fmt.Errorf("%s Decapsulate: %w", k.variant, err)
