@@ -106,18 +106,49 @@ wait_for_socket() {
 # Both peers are removed and re-added so neither side retains any prior
 # session state, handshake state, or cached index table entries.
 reset_peers() {
-    sudo "$WG_BIN" set "$IF1" peer "$P2_PUB" remove 2>/dev/null || true
-    sudo "$WG_BIN" set "$IF2" peer "$P1_PUB" remove 2>/dev/null || true
-    sleep 0.15
-    sudo "$WG_BIN" set "$IF1" peer "$P2_PUB" \
-        allowed-ips "$PEER2_IP/32" \
-        endpoint "127.0.0.1:$PORT2" \
-        persistent-keepalive 2
-    sudo "$WG_BIN" set "$IF2" peer "$P1_PUB" \
-        allowed-ips "$PEER1_IP/32" \
-        endpoint "127.0.0.1:$PORT1" \
-        persistent-keepalive 2
-    sleep 0.05
+    local p1_pub="$1"
+    local p2_pub="$2"
+    local p1_kem_pub="$3"
+    local p2_kem_pub="$4"
+
+    local p1_pub_hex p2_pub_hex
+    p1_pub_hex=$(printf '%s' "$p1_pub" | base64 -d | xxd -p | tr -d '\n')
+    p2_pub_hex=$(printf '%s' "$p2_pub" | base64 -d | xxd -p | tr -d '\n')
+
+    local sock1="/var/run/wireguard/${IF1}.sock"
+    local sock2="/var/run/wireguard/${IF2}.sock"
+
+    # Remove peers first (separate transactions)
+    printf 'set=1\npublic_key=%s\nremove=true\n\n' "$p2_pub_hex" \
+        | sudo socat - "UNIX-CONNECT:$sock1" > /dev/null
+    printf 'set=1\npublic_key=%s\nremove=true\n\n' "$p1_pub_hex" \
+        | sudo socat - "UNIX-CONNECT:$sock2" > /dev/null
+
+    sleep 0.3
+
+    # Re-add peer + KEM key atomically in ONE UAPI transaction each.
+    # This prevents Start() from firing before kemPublicKey is populated.
+    {
+        printf 'set=1\n'
+        printf 'public_key=%s\n' "$p2_pub_hex"
+        [[ -n "$p2_kem_pub" ]] && printf 'kem_public_key=%s\n' "$p2_kem_pub"
+        printf 'allowed_ip=%s/32\n' "$PEER2_IP"
+        printf 'endpoint=127.0.0.1:%s\n' "$PORT2"
+        printf 'persistent_keepalive_interval=25\n'
+        printf '\n'
+    } | sudo socat - "UNIX-CONNECT:$sock1" > /tmp/uapi_sock1.txt
+
+    {
+        printf 'set=1\n'
+        printf 'public_key=%s\n' "$p1_pub_hex"
+        [[ -n "$p1_kem_pub" ]] && printf 'kem_public_key=%s\n' "$p1_kem_pub"
+        printf 'allowed_ip=%s/32\n' "$PEER1_IP"
+        printf 'endpoint=127.0.0.1:%s\n' "$PORT1"
+        printf 'persistent_keepalive_interval=25\n'
+        printf '\n'
+    } | sudo socat - "UNIX-CONNECT:$sock2" > /tmp/uapi_sock2.txt
+
+    sleep 0.1
 }
 
 # =============================================================================
@@ -132,7 +163,7 @@ echo ""
 echo "=== Preflight checks ==="
 
 case "$KEM_MODE" in
-    classic|mlkem512|mlkem768|mlkem1024|hqc128|hybrid-mlkem512|hybrid-mlkem768|hybrid-mlkem1024|hybrid-hqc128) ;;
+    classic|mlkem512|mlkem768|mlkem1024|hqc128|hqc192|hqc256|hybrid-mlkem512|hybrid-mlkem768|hybrid-mlkem1024|hybrid-hqc128|hybrid-hqc192|hybrid-hqc256) ;;
     *) fail "Unknown KEM_MODE '$KEM_MODE'. Valid: classic mlkem512 mlkem768 mlkem1024 hqc128 hybrid-mlkem512 hybrid-mlkem768 hybrid-mlkem1024 hybrid-hqc128" ;;
 esac
 
@@ -242,10 +273,73 @@ sudo route -q delete "$PEER2_IP" 2>/dev/null || true
 sudo route -q add -host "$PEER2_IP" -interface "$IF1"
 sudo route -q add -host "$PEER1_IP" -interface "$IF2"
 
-sudo "$WG_BIN" setconf "$IF1" "$TMP_DIR/$IF1.conf"
-sudo "$WG_BIN" setconf "$IF2" "$TMP_DIR/$IF2.conf"
 log "Interfaces up."
 echo ""
+
+# =============================================================================
+# Fetch each device's KEM public key via UAPI get.
+# Must happen before any peer config so no handshake can fire with empty key.
+# =============================================================================
+# =============================================================================
+# Fetch KEM public keys and configure peers.
+# Classic mode has no KEM keypair, so we use setconf directly.
+# Pure-KEM and hybrid modes must include the KEM key atomically with the peer
+# config so no handshake fires before kemPublicKey is populated.
+# =============================================================================
+get_kem_pubkey() {
+    local iface="$1"
+    local sock="/var/run/wireguard/${iface}.sock"
+    local kem_key
+    kem_key=$(printf 'get=1\n\n' | sudo socat - "UNIX-CONNECT:$sock" 2>&1 \
+        | sed -n '/^kem_public_key=/p' | sed 's/^kem_public_key=//' | tr -d '\r\n ')
+    printf '%s' "$kem_key"
+}
+
+P1_KEM_PUB=$(get_kem_pubkey "$IF1")
+P2_KEM_PUB=$(get_kem_pubkey "$IF2")
+
+P1_PRIV_HEX=$(printf '%s' "$P1_PRIV" | base64 -d | xxd -p | tr -d '\n')
+P2_PRIV_HEX=$(printf '%s' "$P2_PRIV" | base64 -d | xxd -p | tr -d '\n')
+P1_PUB_HEX=$(printf '%s' "$P1_PUB" | base64 -d | xxd -p | tr -d '\n')
+P2_PUB_HEX=$(printf '%s' "$P2_PUB" | base64 -d | xxd -p | tr -d '\n')
+
+SOCK1="/var/run/wireguard/${IF1}.sock"
+SOCK2="/var/run/wireguard/${IF2}.sock"
+
+if [[ "$KEM_MODE" == "classic" ]]; then
+    # Classic mode: no KEM key, standard setconf is fine
+    sudo "$WG_BIN" setconf "$IF1" "$TMP_DIR/$IF1.conf"
+    sudo "$WG_BIN" setconf "$IF2" "$TMP_DIR/$IF2.conf"
+else
+    # PQC modes: include KEM key atomically so Start() never fires with empty kemPublicKey
+    if [[ -z "$P1_KEM_PUB" || -z "$P2_KEM_PUB" ]]; then
+        fail "Failed to retrieve KEM public keys. Is WIREGUARD_KEM set correctly?"
+    fi
+
+    {
+        printf 'set=1\n'
+        printf 'private_key=%s\n' "$P1_PRIV_HEX"
+        printf 'listen_port=%s\n' "$PORT1"
+        printf 'public_key=%s\n'  "$P2_PUB_HEX"
+        printf 'kem_public_key=%s\n' "$P2_KEM_PUB"
+        printf 'allowed_ip=%s/32\n' "$PEER2_IP"
+        printf 'endpoint=127.0.0.1:%s\n' "$PORT2"
+        printf 'persistent_keepalive_interval=25\n'
+        printf '\n'
+    } | sudo socat - "UNIX-CONNECT:$SOCK1" > /dev/null
+
+    {
+        printf 'set=1\n'
+        printf 'private_key=%s\n' "$P2_PRIV_HEX"
+        printf 'listen_port=%s\n' "$PORT2"
+        printf 'public_key=%s\n'  "$P1_PUB_HEX"
+        printf 'kem_public_key=%s\n' "$P1_KEM_PUB"
+        printf 'allowed_ip=%s/32\n' "$PEER1_IP"
+        printf 'endpoint=127.0.0.1:%s\n' "$PORT1"
+        printf 'persistent_keepalive_interval=25\n'
+        printf '\n'
+    } | sudo socat - "UNIX-CONNECT:$SOCK2" > /dev/null
+fi
 
 # =============================================================================
 # 1. Algorithm metadata
@@ -277,11 +371,14 @@ echo ""
 # =============================================================================
 echo "=== Baseline tunnel RTT (established session, no handshake) ==="
 
-# Wait for the session from setconf to be fully established
+reset_peers "$P1_PUB" "$P2_PUB" "$P1_KEM_PUB" "$P2_KEM_PUB"
+
+# Wait for session to establish by pinging rather than checking timestamps,
+# since lastHandshakeNano may not update reliably after raw UAPI peer re-add.
+log "Waiting for tunnel to pass traffic..."
 for _ in $(seq 1 20); do
-    TS1="$(sudo "$WG_BIN" show "$IF1" latest-handshakes | awk 'NR==1{print $2}')"
-    TS2="$(sudo "$WG_BIN" show "$IF2" latest-handshakes | awk 'NR==1{print $2}')"
-    if [[ "${TS1:-0}" -gt 0 && "${TS2:-0}" -gt 0 ]]; then
+    if ping -c 1 -W 500 -s 8 "$PEER2_IP" >/dev/null 2>&1; then
+        log "Tunnel is up."
         break
     fi
     sleep 0.5
@@ -289,7 +386,7 @@ done
 
 RTT_SAMPLES=()
 RTT_COUNT=${HANDSHAKE_TRIALS}
-RTT_DISCARD=50
+RTT_DISCARD=25
 for ((i = 1; i <= RTT_COUNT + RTT_DISCARD; i++)); do
     T0=$(ns_now)
     ping -c 1 -W 1000 -s 8 "$PEER2_IP" >/dev/null 2>&1
@@ -340,10 +437,10 @@ echo "baseline_tunnel_rtt_ms=$BASELINE_RTT" >> "$RESULTS_DIR/sizes.txt"
 # =============================================================================
 echo "=== [2/2] Handshake latency ($HANDSHAKE_TRIALS trials) ==="
 
-WARMUP_COUNT=50
+WARMUP_COUNT=25
 echo "  Warming up ($WARMUP_COUNT unrecorded handshakes)..."
 for _ in $(seq 1 "$WARMUP_COUNT"); do
-    reset_peers
+    reset_peers "$P1_PUB" "$P2_PUB" "$P1_KEM_PUB" "$P2_KEM_PUB"
     ping -c 1 -W 2000 -s 8 "$PEER2_IP" >/dev/null 2>&1 || true
 done
 log "Warmup complete. Starting recorded trials."
@@ -353,7 +450,7 @@ LATENCIES=()
 FAILED_TRIALS=0
 
 for i in $(seq 1 "$HANDSHAKE_TRIALS"); do
-    reset_peers
+    reset_peers "$P1_PUB" "$P2_PUB" "$P1_KEM_PUB" "$P2_KEM_PUB"
 
     T_START=$(ns_now)
 

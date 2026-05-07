@@ -87,6 +87,8 @@ type MessageInitiation struct {
 	Sender    uint32
 	Ephemeral []byte
 	Static    [NoisePublicKeySize + poly1305.TagSize]byte
+	KEMCT     []byte
+	KEMStatic []byte
 	Timestamp [tai64n.TimestampSize + poly1305.TagSize]byte
 	MAC1      [blake2s.Size128]byte
 	MAC2      [blake2s.Size128]byte
@@ -118,7 +120,44 @@ type MessageCookieReply struct {
 
 var errMessageLengthMismatch = errors.New("message length mismatch")
 
-func (msg *MessageInitiation) unmarshal(b []byte, expectedSize int, ephemeralSize int) error {
+func (msg *MessageInitiation) marshal(b []byte, expectedSize, ephemeralSize, kemCTSize, staticSize int) error {
+	if len(b) != expectedSize {
+		return errMessageLengthMismatch
+	}
+	if len(msg.Ephemeral) != ephemeralSize {
+		return errMessageLengthMismatch
+	}
+
+	binary.LittleEndian.PutUint32(b, msg.Type)
+	binary.LittleEndian.PutUint32(b[4:], msg.Sender)
+
+	copy(b[8:], msg.Ephemeral)
+	base := 8 + ephemeralSize
+
+	// Pure-KEM: CT_es precedes the static field on the wire
+	if kemCTSize > 0 {
+		copy(b[base:], msg.KEMCT)
+		base += kemCTSize
+	}
+
+	// Static field: fixed array for classical/hybrid, dynamic slice for pure-KEM
+	if kemCTSize > 0 {
+		// Pure-KEM uses KEMStatic ([]byte, size = KEM pk + tag)
+		copy(b[base:], msg.KEMStatic)
+	} else {
+		// Classical/hybrid uses Static ([NoisePublicKeySize+tag]byte)
+		copy(b[base:], msg.Static[:])
+	}
+	base += staticSize
+
+	copy(b[base:], msg.Timestamp[:])
+	copy(b[base+len(msg.Timestamp):], msg.MAC1[:])
+	copy(b[base+len(msg.Timestamp)+len(msg.MAC1):], msg.MAC2[:])
+
+	return nil
+}
+
+func (msg *MessageInitiation) unmarshal(b []byte, expectedSize, ephemeralSize, kemCTSize, staticSize int) error {
 	if len(b) != expectedSize {
 		return errMessageLengthMismatch
 	}
@@ -128,31 +167,27 @@ func (msg *MessageInitiation) unmarshal(b []byte, expectedSize int, ephemeralSiz
 
 	msg.Ephemeral = make([]byte, ephemeralSize)
 	copy(msg.Ephemeral, b[8:8+ephemeralSize])
-
 	base := 8 + ephemeralSize
-	copy(msg.Static[:], b[base:])
-	copy(msg.Timestamp[:], b[base+len(msg.Static):])
-	copy(msg.MAC1[:], b[base+len(msg.Static)+len(msg.Timestamp):])
-	copy(msg.MAC2[:], b[base+len(msg.Static)+len(msg.Timestamp)+len(msg.MAC1):])
 
-	return nil
-}
-
-func (msg *MessageInitiation) marshal(b []byte, expectedSize int, ephemeralSize int) error {
-	if len(b) != expectedSize {
-		return errMessageLengthMismatch
+	// Pure-KEM: CT_es precedes the static field on the wire
+	if kemCTSize > 0 {
+		msg.KEMCT = make([]byte, kemCTSize)
+		copy(msg.KEMCT, b[base:base+kemCTSize])
+		base += kemCTSize
 	}
 
-	binary.LittleEndian.PutUint32(b, msg.Type)
-	binary.LittleEndian.PutUint32(b[4:], msg.Sender)
+	// Static field: fixed array for classical/hybrid, dynamic slice for pure-KEM
+	if kemCTSize > 0 {
+		msg.KEMStatic = make([]byte, staticSize)
+		copy(msg.KEMStatic, b[base:base+staticSize])
+	} else {
+		copy(msg.Static[:], b[base:base+staticSize])
+	}
+	base += staticSize
 
-	copy(b[8:], msg.Ephemeral)
-
-	base := 8 + ephemeralSize
-	copy(b[base:], msg.Static[:])
-	copy(b[base+len(msg.Static):], msg.Timestamp[:])
-	copy(b[base+len(msg.Static)+len(msg.Timestamp):], msg.MAC1[:])
-	copy(b[base+len(msg.Static)+len(msg.Timestamp)+len(msg.MAC1):], msg.MAC2[:])
+	copy(msg.Timestamp[:], b[base:])
+	copy(msg.MAC1[:], b[base+len(msg.Timestamp):])
+	copy(msg.MAC2[:], b[base+len(msg.Timestamp)+len(msg.MAC1):])
 
 	return nil
 }
@@ -179,6 +214,9 @@ func (msg *MessageResponse) unmarshal(b []byte, expectedSize int, ephemeralSize 
 
 func (msg *MessageResponse) marshal(b []byte, expectedSize int, ephemeralSize int) error {
 	if len(b) != expectedSize {
+		return errMessageLengthMismatch
+	}
+	if len(msg.Ephemeral) != ephemeralSize {
 		return errMessageLengthMismatch
 	}
 
@@ -294,6 +332,11 @@ func init() {
 }
 
 func (device *Device) CreateMessageInitiation(peer *Peer) (*MessageInitiation, error) {
+	// PQC pure-KEM
+	if device.pqcConfig.IsPureKEM() {
+		return device.KEMCreateMessageInitiation(peer)
+	}
+
 	device.staticIdentity.RLock()
 	defer device.staticIdentity.RUnlock()
 
@@ -377,6 +420,11 @@ func (device *Device) CreateMessageInitiation(peer *Peer) (*MessageInitiation, e
 }
 
 func (device *Device) ConsumeMessageInitiation(msg *MessageInitiation) *Peer {
+	// PQC pure-KEM
+	if device.pqcConfig.IsPureKEM() {
+		return device.KEMConsumeMessageInitiation(msg)
+	}
+
 	var (
 		hash     [blake2s.Size]byte
 		chainKey [blake2s.Size]byte
@@ -497,6 +545,11 @@ func (device *Device) ConsumeMessageInitiation(msg *MessageInitiation) *Peer {
 }
 
 func (device *Device) CreateMessageResponse(peer *Peer) (*MessageResponse, error) {
+	// PQC pure-KEM
+	if device.pqcConfig.IsPureKEM() {
+		return device.KEMCreateMessageResponse(peer)
+	}
+
 	handshake := &peer.handshake
 	handshake.mutex.Lock()
 	defer handshake.mutex.Unlock()
@@ -573,6 +626,11 @@ func (device *Device) CreateMessageResponse(peer *Peer) (*MessageResponse, error
 }
 
 func (device *Device) ConsumeMessageResponse(msg *MessageResponse) *Peer {
+	// PQC pure-KEM
+	if device.pqcConfig.IsPureKEM() {
+		return device.KEMConsumeMessageResponse(msg)
+	}
+
 	if msg.Type != MessageResponseType {
 		return nil
 	}
@@ -691,8 +749,6 @@ func (peer *Peer) BeginSymmetricSession() error {
 	handshake.mutex.Lock()
 	defer handshake.mutex.Unlock()
 
-	// derive keys
-
 	var isInitiator bool
 	var sendKey [chacha20poly1305.KeySize]byte
 	var recvKey [chacha20poly1305.KeySize]byte
@@ -705,18 +761,29 @@ func (peer *Peer) BeginSymmetricSession() error {
 		return fmt.Errorf("invalid state for keypair derivation: %v", handshake.state)
 	}
 
-	if device.pqcConfig.IsHybrid() {
+	switch {
+	case device.pqcConfig.IsPureKEM():
+		// Pure-KEM path: the chain key encodes two KEM shared secrets (ssES
+		// from CT_es, ssEE from CT_ee) via mixKey, plus a hash binding to the
+		// responder's static KEM public key via mixHash (replacing a third KEM
+		// operation). No additional combiner step is needed — derive session
+		// keys directly.
+		if isInitiator {
+			KDF2(&sendKey, &recvKey, handshake.chainKey[:], nil)
+		} else {
+			KDF2(&recvKey, &sendKey, handshake.chainKey[:], nil)
+		}
+
+	case device.pqcConfig.IsHybrid():
+		// Hybrid path: the KEM shared secret was intentionally NOT mixed into
+		// the chain key during the handshake (to preserve the hybrid security
+		// property). It must be combined here so that breaking either X25519
+		// or the KEM alone is insufficient to recover the session key.
 		if handshake.kemSharedSecret == nil {
 			return errors.New("hybrid mode enabled but KEM shared secret is missing")
 		}
-		// Derive session keys using BOTH classical chain key and KEM shared secret.
-		// An adversary must break BOTH X25519 and the KEM to recover the session key.
-		// KDF2 here is HKDF with chainKey as salt and kemSS as IKM (or vice versa —
-		// the important property is that both are necessary inputs).
 		var combinedChainKey [blake2s.Size]byte
 		KDF1(&combinedChainKey, handshake.chainKey[:], handshake.kemSharedSecret)
-		setZero(handshake.kemSharedSecret)
-		handshake.kemSharedSecret = nil
 
 		if isInitiator {
 			KDF2(&sendKey, &recvKey, combinedChainKey[:], nil)
@@ -724,7 +791,9 @@ func (peer *Peer) BeginSymmetricSession() error {
 			KDF2(&recvKey, &sendKey, combinedChainKey[:], nil)
 		}
 		setZero(combinedChainKey[:])
-	} else {
+
+	default:
+		// Classical path: derive directly from chain key
 		if isInitiator {
 			KDF2(&sendKey, &recvKey, handshake.chainKey[:], nil)
 		} else {
@@ -732,10 +801,9 @@ func (peer *Peer) BeginSymmetricSession() error {
 		}
 	}
 
-	// zero handshake
-
+	// Zero all handshake key material
 	setZero(handshake.chainKey[:])
-	setZero(handshake.hash[:]) // Doesn't necessarily need to be zeroed. Could be used for something interesting down the line.
+	setZero(handshake.hash[:])
 	setZero(handshake.localEphemeral[:])
 	// PQC
 	setZero(handshake.kemEphemeralPriv)
@@ -747,8 +815,7 @@ func (peer *Peer) BeginSymmetricSession() error {
 
 	peer.handshake.state = handshakeZeroed
 
-	// create AEAD instances
-
+	// Create AEAD instances
 	keypair := new(Keypair)
 	keypair.send, _ = chacha20poly1305.New(sendKey[:])
 	keypair.receive, _ = chacha20poly1305.New(recvKey[:])
@@ -762,13 +829,11 @@ func (peer *Peer) BeginSymmetricSession() error {
 	keypair.localIndex = peer.handshake.localIndex
 	keypair.remoteIndex = peer.handshake.remoteIndex
 
-	// remap index
-
+	// Remap index
 	device.indexTable.SwapIndexForKeypair(handshake.localIndex, keypair)
 	handshake.localIndex = 0
 
-	// rotate key pairs
-
+	// Rotate key pairs
 	keypairs := &peer.keypairs
 	keypairs.Lock()
 	defer keypairs.Unlock()

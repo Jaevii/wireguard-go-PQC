@@ -269,6 +269,14 @@ func (peer *ipcSetPeer) handlePostConfig() {
 	if peer.Peer == nil || peer.dummy {
 		return
 	}
+	// Register KEM public key in lookup map for any PQC mode that uses it.
+	// Currently consumed by LookupPeerByKEMKey in pure-KEM mode; populated
+	// for hybrid too so the map stays consistent if hybrid lookup is added later.
+	if len(peer.kemPublicKey) > 0 && !peer.device.pqcConfig.IsClassic() {
+		peer.device.peers.Lock()
+		peer.device.peers.kemKeyMap[string(peer.kemPublicKey)] = peer.Peer
+		peer.device.peers.Unlock()
+	}
 	if peer.created {
 		peer.endpoint.disableRoaming = peer.device.net.brokenRoaming && peer.endpoint.val != nil
 	}
@@ -412,6 +420,13 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		kemPub, err := base64.StdEncoding.DecodeString(value)
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set kem_public_key: %w", err)
+		}
+		if !device.pqcConfig.IsClassic() {
+			expected := device.pqcConfig.KEM().PublicKeySize()
+			if len(kemPub) != expected {
+				return ipcErrorf(ipc.IpcErrorInvalid,
+					"kem_public_key has wrong length: got %d, want %d", len(kemPub), expected)
+			}
 		}
 		peer.kemPublicKey = kems.PublicKey(kemPub)
 

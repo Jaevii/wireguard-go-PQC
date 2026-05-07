@@ -61,21 +61,28 @@ func hybridMixResponderKEM(handshake *Handshake, msg *MessageInitiation, kem kem
 // hybridMixResponseKEM is called inside CreateMessageResponse after the
 // classical response transcript is complete (after mixHash(msg.Empty[:])).
 // It encapsulates to the initiator's ephemeral KEM public key stored in
-// handshake.kemSharedSecret, appends the ciphertext to msg.Ephemeral after the
+// handshake.remoteKEM, appends the ciphertext to msg.Ephemeral after the
 // X25519 public key, and mixes the ciphertext into the transcript hash.
 // The KEM shared secret is stored in handshake.kemSharedSecret to be consumed
 // by BeginSymmetricSession as a mandatory input to session key derivation.
 //
 // Wire format: msg.Ephemeral = X25519_pk(32) ++ KEM_ct(N)
-func hybridMixResponseKEM(handshake *Handshake, msg *MessageResponse, kem kems.KEM) error {
+func hybridMixResponseKEM(handshake *Handshake, msg *MessageResponse, kem kems.KEM) (retErr error) {
 	ciphertext, sharedSecret, err := kem.Encapsulate(kems.PublicKey(handshake.remoteKEM))
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if retErr != nil {
+			setZero(handshake.kemSharedSecret)
+			handshake.kemSharedSecret = nil
+		}
+	}()
+
 	// Store shared secret for BeginSymmetricSession — do NOT mix into chainKey here
 	handshake.kemSharedSecret = make([]byte, len(sharedSecret))
 	copy(handshake.kemSharedSecret, sharedSecret)
-	setZero(sharedSecret)
+	defer setZero(handshake.kemSharedSecret)
 
 	msg.Ephemeral = append(msg.Ephemeral, ciphertext...)
 
@@ -95,7 +102,7 @@ func hybridMixResponseKEM(handshake *Handshake, msg *MessageResponse, kem kems.K
 // fields are not yet committed at this point in the handshake flow.
 //
 // msg.Ephemeral[32:] contains the responder's KEM ciphertext.
-func hybridMixInitiatorResponse(handshake *Handshake, msg *MessageResponse, hash *[blake2s.Size]byte, kem kems.KEM) error {
+func hybridMixInitiatorResponse(handshake *Handshake, msg *MessageResponse, hash *[blake2s.Size]byte, kem kems.KEM) (retErr error) {
 	if len(msg.Ephemeral) != NoisePublicKeySize+kem.CiphertextSize() {
 		return errInvalidPublicKey
 	}
@@ -105,6 +112,12 @@ func hybridMixInitiatorResponse(handshake *Handshake, msg *MessageResponse, hash
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if retErr != nil {
+			setZero(handshake.kemSharedSecret)
+			handshake.kemSharedSecret = nil
+		}
+	}()
 
 	// Mix ciphertext into transcript hash for authentication binding
 	mixHash(hash, hash, ciphertext)
@@ -116,7 +129,7 @@ func hybridMixInitiatorResponse(handshake *Handshake, msg *MessageResponse, hash
 
 	handshake.kemSharedSecret = make([]byte, len(sharedSecret))
 	copy(handshake.kemSharedSecret, sharedSecret)
-	setZero(sharedSecret)
+	defer setZero(handshake.kemSharedSecret)
 
 	return nil
 }

@@ -124,7 +124,7 @@ func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
 	}
 
 	packet := make([]byte, peer.device.messageInitiationSize)
-	_ = msg.marshal(packet, peer.device.messageInitiationSize, peer.device.initiationEphemeralSize)
+	_ = msg.marshal(packet, peer.device.messageInitiationSize, peer.device.initiationEphemeralSize, peer.device.messageKEMCTSize, peer.device.messageStaticSize)
 	peer.cookieGenerator.AddMacs(packet)
 
 	peer.timersAnyAuthenticatedPacketTraversal()
@@ -156,6 +156,21 @@ func (peer *Peer) SendHandshakeResponse() error {
 	_ = response.marshal(packet, peer.device.messageResponseSize, peer.device.responseEphemeralSize)
 	peer.cookieGenerator.AddMacs(packet)
 
+	peer.timersAnyAuthenticatedPacketTraversal()
+	peer.timersAnyAuthenticatedPacketSent()
+
+	// Send the packet BEFORE deriving the session. If we derive first and
+	// the send fails, the responder holds a committed keypair the initiator
+	// will never have, causing the next handshake attempt to fail with
+	// handshakeZeroed. This is especially likely with large PQC response
+	// packets (e.g. HQC ~2100 bytes) that are more likely to be delayed
+	// or dropped than small classical responses (92 bytes).
+	err = peer.SendBuffers([][]byte{packet})
+	if err != nil {
+		peer.device.log.Errorf("%v - Failed to send handshake response: %v", peer, err)
+		return err
+	}
+
 	err = peer.BeginSymmetricSession()
 	if err != nil {
 		peer.device.log.Errorf("%v - Failed to derive keypair: %v", peer, err)
@@ -163,15 +178,8 @@ func (peer *Peer) SendHandshakeResponse() error {
 	}
 
 	peer.timersSessionDerived()
-	peer.timersAnyAuthenticatedPacketTraversal()
-	peer.timersAnyAuthenticatedPacketSent()
 
-	// TODO: allocation could be avoided
-	err = peer.SendBuffers([][]byte{packet})
-	if err != nil {
-		peer.device.log.Errorf("%v - Failed to send handshake response: %v", peer, err)
-	}
-	return err
+	return nil
 }
 
 func (device *Device) SendHandshakeCookie(initiatingElem *QueueHandshakeElement) error {

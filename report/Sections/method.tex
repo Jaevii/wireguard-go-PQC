@@ -18,5 +18,9 @@ Use Level V parameters for all classification levels (NSA Commercial National Se
     \item WireGuard-Go Linux VM 
 \end{itemize}
 
+1500 handshakes
 
-\subsection{Program}
+\subsection{Implementation}
+staying within WireGuard's 1232-byte packet constraint is impossible while maintaining full authentication.
+
+For your thesis the most accurate characterization is: your hybrid is architecturally stronger than PSK injection because it provides per-session PQC forward secrecy and tighter binding between authentication and key agreement, at the cost of larger messages and a more invasive implementation. PSK injection is a practical deployment shortcut that achieves most of the confidentiality benefit without touching WireGuard's internals.
