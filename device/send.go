@@ -115,8 +115,6 @@ func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
 	peer.handshake.lastSentHandshake = time.Now()
 	peer.handshake.mutex.Unlock()
 
-	peer.device.benchmarkEmit("BENCH_INIT_START_NS %d", time.Now().UnixNano()) // Benchmark
-
 	peer.device.log.Verbosef("%v - Sending handshake initiation", peer)
 
 	msg, err := peer.device.CreateMessageInitiation(peer)
@@ -178,8 +176,6 @@ func (peer *Peer) SendHandshakeResponse() error {
 		peer.device.log.Errorf("%v - Failed to derive keypair: %v", peer, err)
 		return err
 	}
-
-	peer.device.benchmarkEmit("BENCH_RESP_END_NS %d", time.Now().UnixNano()) // Benchmark
 
 	peer.timersSessionDerived()
 

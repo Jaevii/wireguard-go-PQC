@@ -104,9 +104,6 @@ type Device struct {
 	messageKEMCTSize        int
 	initiationEphemeralSize int
 	responseEphemeralSize   int
-
-	// Benchmark
-	bench *benchmarkWriter
 }
 
 // deviceState represents the state of a Device.
@@ -333,7 +330,6 @@ func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
 	}
 
 	device.log = logger
-	device.bench = newBenchmarkWriter()
 	device.net.bind = bind
 	device.tun.device = tunDevice
 	mtu, err := device.tun.device.MTU()
@@ -402,7 +398,6 @@ func NewDeviceWithConfig(tunDevice tun.Device, bind conn.Bind, logger *Logger, c
 	}
 
 	device.log = logger
-	device.bench = newBenchmarkWriter()
 	device.net.bind = bind
 	device.tun.device = tunDevice
 	mtu, err := device.tun.device.MTU()
@@ -515,8 +510,6 @@ func (device *Device) Close() {
 	device.state.stopping.Wait()
 
 	device.rate.limiter.Close()
-
-	device.bench.close()
 
 	device.log.Verbosef("Device closed")
 	close(device.closed)

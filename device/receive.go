@@ -357,8 +357,6 @@ func (device *Device) RoutineHandshake(id int) {
 				goto skip
 			}
 
-			respStartNS := time.Now().UnixNano() // Benchmark
-
 			// consume initiation
 
 			peer := device.ConsumeMessageInitiation(&msg)
@@ -366,8 +364,6 @@ func (device *Device) RoutineHandshake(id int) {
 				device.log.Verbosef("Received invalid initiation message from %s", elem.endpoint.DstToString())
 				goto skip
 			}
-
-			peer.device.benchmarkEmit("BENCH_RESP_START_NS %d", respStartNS) // Benchmark
 
 			// update timers
 
@@ -420,8 +416,6 @@ func (device *Device) RoutineHandshake(id int) {
 				device.log.Errorf("%v - Failed to derive keypair: %v", peer, err)
 				goto skip
 			}
-
-			peer.device.benchmarkEmit("BENCH_INIT_END_NS %d", time.Now().UnixNano()) // Benchmark
 
 			peer.timersSessionDerived()
 			peer.timersHandshakeComplete()

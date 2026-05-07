@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 # =============================================================================
-# wireguard-go KEM handshake benchmark
+# wireguard-go KEM handshake benchmark (ping-RTT method)
 #
 # Run this script on VM1 (initiator, 10.27.8.10).
 # VM2 (responder, 10.27.8.11) is controlled via passwordless SSH.
 #
 # Both VMs must have the wireguard-go binary built at:
 #   ~/wireguard-go-PQC/wireguard-go
+#
+# Measurement method:
+#   After expire_keys, the first ping MUST complete a full handshake before
+#   it gets a response. Its RTT therefore directly captures the full
+#   handshake round-trip time. No log files, no cross-VM clock sync needed.
 #
 # Usage:
 #   KEM_MODE=classic          bash benchmark_vm.sh
@@ -36,8 +41,8 @@ set -euo pipefail
 # =============================================================================
 # Configuration
 # =============================================================================
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$HOME/wireguard-go-PQC"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 WG_GO_BIN="${WG_GO_BIN:-$REPO_ROOT/wireguard-go}"
 WG_BIN="${WG_BIN:-wg}"
@@ -56,22 +61,15 @@ PORT2="51820"
 KEM_MODE="${KEM_MODE:-classic}"
 HANDSHAKE_TRIALS="${HANDSHAKE_TRIALS:-1500}"
 WARMUP_TRIALS=50
-TRIAL_TIMEOUT=15   # seconds to wait for a single handshake to complete
-POLL_INTERVAL=0.02 # seconds between log-line polls inside each trial
+TRIAL_TIMEOUT=15  # seconds to wait for a single ping/handshake
 
 RESULTS_DIR="$SCRIPT_DIR/results/$(date +%Y%m%d_%H%M%S)_${KEM_MODE}"
 TMP_DIR="$(mktemp -d)"
 
 MTU_LIMIT=1472
 
-# Bench log paths — one per VM, written by the Go process
-BENCH_LOG_VM1="/tmp/wg_bench_vm1_${KEM_MODE}_$$.log"
-BENCH_LOG_VM2="/tmp/wg_bench_vm2_${KEM_MODE}_$$.log"
-
 # =============================================================================
-# SSH with ControlMaster — one TCP connection for the entire benchmark run.
-# All SSH calls after the first reuse the same socket, eliminating per-call
-# TCP + crypto overhead from the measurement path.
+# SSH ControlMaster — one TCP connection for the entire run
 # =============================================================================
 SSH_CTL="$TMP_DIR/ssh_ctl"
 SSH_OPTS="-o StrictHostKeyChecking=no \
@@ -83,7 +81,7 @@ SSH_OPTS="-o StrictHostKeyChecking=no \
 VM2="ssh $SSH_OPTS ${VM2_USER}@${VM2_HOST}"
 
 # =============================================================================
-# Cleanup — tears down both VMs
+# Cleanup
 # =============================================================================
 cleanup() {
     set +e
@@ -97,7 +95,6 @@ cleanup() {
           sudo pkill -f 'wireguard-go.*$IF' 2>/dev/null; \
           true" 2>/dev/null || true
 
-    # Close the ControlMaster socket
     ssh -o ControlPath="$SSH_CTL" -O exit "${VM2_USER}@${VM2_HOST}" 2>/dev/null || true
 
     rm -rf "$TMP_DIR"
@@ -111,8 +108,6 @@ trap cleanup EXIT INT TERM
 log()  { echo "[$(date +%H:%M:%S)] $*"; }
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
-# Send a UAPI set command to the local socket and verify errno=0.
-# Usage: uapi_set <sock> <newline-separated key=value pairs>
 uapi_set() {
     local sock="$1"
     local payload="$2"
@@ -123,19 +118,6 @@ uapi_set() {
     if [[ -z "$errno" || "$errno" != "0" ]]; then
         fail "UAPI set failed (errno=${errno:-missing}) on $sock. Response: $response"
     fi
-}
-
-# Count lines matching a pattern in a file, returns 0 if file missing
-count_lines() {
-    local pattern="$1"
-    local file="$2"
-    if [[ ! -f "$file" ]]; then
-        echo 0
-        return
-    fi
-    local n
-    n=$(grep -c "$pattern" "$file" 2>/dev/null) || n=0
-    echo "$n"
 }
 
 wait_for_socket_local() {
@@ -156,6 +138,12 @@ wait_for_socket_remote() {
     fail "Remote socket $sock did not appear within 10s."
 }
 
+# Expire keys via local UAPI only — no SSH in the hot path
+expire_keys() {
+    uapi_set "$SOCK_LOCAL" \
+        "$(printf 'set=1\npublic_key=%s\nexpire_keys=true' "$P2_PUB_HEX")"
+}
+
 # =============================================================================
 # Preflight checks
 # =============================================================================
@@ -165,6 +153,7 @@ echo " Mode    : $KEM_MODE"
 echo " Trials  : $HANDSHAKE_TRIALS (+ $WARMUP_TRIALS warmup)"
 echo " VM1     : $VM1_HOST_IP (initiator, local)"
 echo " VM2     : $VM2_HOST (responder, SSH)"
+echo " Method  : ping RTT after expire_keys"
 echo "============================================"
 echo ""
 echo "=== Preflight checks ==="
@@ -182,8 +171,6 @@ command -v socat     >/dev/null 2>&1 || fail "'socat' not found — sudo apt ins
 [[ -x "$WG_GO_BIN" ]]               || fail "wireguard-go binary not found: $WG_GO_BIN"
 
 log "Opening SSH ControlMaster to VM2..."
-# -fN opens the connection in the background without running a command;
-# subsequent VM2= calls reuse this socket automatically.
 ssh $SSH_OPTS -fN "${VM2_USER}@${VM2_HOST}" \
     || fail "Cannot open SSH ControlMaster to ${VM2_USER}@${VM2_HOST}."
 log "SSH ControlMaster established."
@@ -228,9 +215,8 @@ echo "  msg_response        = $MSG_RESP_BYTES bytes"
 EXCEEDS_MTU=false
 if [[ "$MSG_INIT_BYTES" -gt "$MTU_LIMIT" || "$MSG_RESP_BYTES" -gt "$MTU_LIMIT" ]]; then
     EXCEEDS_MTU=true
-    echo "  WARNING: $KEM_MODE messages exceed MTU ($MTU_LIMIT bytes)."
+    echo "  WARNING: $KEM_MODE messages exceed MTU ($MTU_LIMIT bytes) — IP fragmentation likely."
     echo "  Initiation: ${MSG_INIT_BYTES}b  Response: ${MSG_RESP_BYTES}b"
-    echo "  HQC may require IP fragmentation."
 fi
 echo ""
 
@@ -254,12 +240,7 @@ echo ""
 # Start wireguard-go on VM1 (local)
 # =============================================================================
 echo "=== Starting wireguard-go on VM1 ==="
-
-# Truncate bench log before starting so line counts start from zero
-> "$BENCH_LOG_VM1"
-
 sudo env WIREGUARD_KEM="$KEM_MODE" \
-         WIREGUARD_BENCH_LOG="$BENCH_LOG_VM1" \
          "$WG_GO_BIN" --foreground "$IF" \
     >"/tmp/vm1_${IF}.log" 2>&1 &
 VM1_PID=$!
@@ -277,10 +258,7 @@ echo ""
 # Start wireguard-go on VM2 (remote)
 # =============================================================================
 echo "=== Starting wireguard-go on VM2 ==="
-
-$VM2 "> '$BENCH_LOG_VM2'"
 $VM2 "sudo WIREGUARD_KEM='$KEM_MODE' \
-           WIREGUARD_BENCH_LOG='$BENCH_LOG_VM2' \
            $REPO_ROOT/wireguard-go --foreground $IF \
     >/tmp/vm2_${IF}.log 2>&1 &"
 
@@ -340,16 +318,14 @@ log "Peers configured."
 echo ""
 
 # =============================================================================
-# Measure baseline RTT (pure ICMP, established session, no handshake)
+# Wait for initial handshake and measure baseline ICMP RTT
 # =============================================================================
 echo "=== Measuring baseline RTT ==="
-
-# Wait for the first handshake to complete so baseline is not measuring it
 log "Waiting for initial handshake..."
 ping -c 1 -W 10 "$PEER2_IP" >/dev/null 2>&1 \
     || fail "Initial ping failed — check connectivity."
 
-# Let the session fully establish, then measure ICMP-only RTT
+# Let session fully establish, then measure ICMP-only RTT (no handshake)
 sleep 1
 BASELINE_SAMPLES=()
 for _ in $(seq 1 30); do
@@ -358,9 +334,8 @@ for _ in $(seq 1 30); do
     [[ -n "$rtt" ]] && BASELINE_SAMPLES+=("$rtt")
 done
 
-if [[ ${#BASELINE_SAMPLES[@]} -eq 0 ]]; then
+[[ ${#BASELINE_SAMPLES[@]} -eq 0 ]] && \
     fail "Could not measure baseline RTT — no ping responses."
-fi
 
 BASELINE_RTT=$(printf '%s\n' "${BASELINE_SAMPLES[@]}" \
     | awk '{s+=$1; n++} END{printf "%.3f", s/n}')
@@ -386,76 +361,51 @@ echo ""
 echo ""
 
 # =============================================================================
-# Expire-keys helper — forces a fresh handshake on the next outbound packet.
-# This is a local-only UAPI call; no SSH in the hot path.
-# =============================================================================
-expire_keys() {
-    uapi_set "$SOCK_LOCAL" \
-        "$(printf 'set=1\npublic_key=%s\nexpire_keys=true' "$P2_PUB_HEX")"
-}
-
-# =============================================================================
-# Warmup — unrecorded trials to bring CPU caches, AES-NI state, and
-# Go runtime allocator to steady state before recording begins.
+# Warmup — unrecorded trials
 # =============================================================================
 echo "=== Warmup ($WARMUP_TRIALS unrecorded trials) ==="
-
-# Truncate bench logs so warmup lines don't appear in recorded data
-> "$BENCH_LOG_VM1"
-$VM2 "> '$BENCH_LOG_VM2'"
-
 for w in $(seq 1 "$WARMUP_TRIALS"); do
     expire_keys
     ping -c 1 -W "$TRIAL_TIMEOUT" "$PEER2_IP" >/dev/null 2>&1 || true
-
-    # Wait for completion so we don't overlap into the next warmup trial
-    DEADLINE=$(( $(date +%s) + TRIAL_TIMEOUT ))
-    while [[ $(count_lines '^BENCH_INIT_END_NS' "$BENCH_LOG_VM1") -lt $w ]]; do
-        [[ $(date +%s) -ge $DEADLINE ]] && break
-        sleep "$POLL_INTERVAL"
-    done
+    # Brief pause so the session is fully established before the next expire
+    sleep 0.05
 done
-
-log "Warmup complete. Truncating bench logs for recorded run."
-
-# Truncate bench logs again — recorded trials start from line 0
-> "$BENCH_LOG_VM1"
-$VM2 "> '$BENCH_LOG_VM2'"
+log "Warmup complete."
 echo ""
 
 # =============================================================================
-# Recorded trials
+# Recorded trials — measure ping RTT after expire_keys
+#
+# Each trial:
+#   1. expire_keys  (local UAPI, no SSH)
+#   2. ping -c 1    (must complete handshake first, RTT = handshake + ICMP)
+#   3. record RTT
 # =============================================================================
 echo "=== Recorded trials ($HANDSHAKE_TRIALS) ==="
+
+RTT_FILE="$RESULTS_DIR/handshake_rtts.txt"
+> "$RTT_FILE"
 
 FAILED=0
 
 for i in $(seq 1 "$HANDSHAKE_TRIALS"); do
-    # Expire keys via local UAPI only — no SSH in this path
     expire_keys
 
-    # Send a single ping to trigger SendStagedPackets -> SendHandshakeInitiation.
-    # This ping is NOT timed; the Go binary records the actual handshake boundaries.
-    ping -c 1 -W "$TRIAL_TIMEOUT" "$PEER2_IP" >/dev/null 2>&1 || true
+    rtt=$(ping -c 1 -W "$TRIAL_TIMEOUT" "$PEER2_IP" 2>/dev/null \
+        | grep -oP 'time=\K[\d.]+' || echo "")
 
-    # Wait until the Go binary has logged BENCH_INIT_END_NS for this trial
-    DEADLINE=$(( $(date +%s) + TRIAL_TIMEOUT ))
-    while [[ $(count_lines '^BENCH_INIT_END_NS' "$BENCH_LOG_VM1") -lt $i ]]; do
-        if [[ $(date +%s) -ge $DEADLINE ]]; then
-            log "Trial $i: FAILED — no BENCH_INIT_END_NS within ${TRIAL_TIMEOUT}s."
-            FAILED=$(( FAILED + 1 ))
-            if [[ $FAILED -gt $(( HANDSHAKE_TRIALS / 20 )) ]]; then
-                echo "VM1 log tail:"
-                tail -n 20 "/tmp/vm1_${IF}.log" || true
-                fail "More than 5% of trials failed."
-            fi
-            # Truncate logs so line counts stay in sync after a failure
-            > "$BENCH_LOG_VM1"
-            $VM2 "> '$BENCH_LOG_VM2'"
-            break
+    if [[ -z "$rtt" ]]; then
+        log "Trial $i: FAILED — ping timed out after ${TRIAL_TIMEOUT}s."
+        FAILED=$(( FAILED + 1 ))
+        if [[ $FAILED -gt $(( HANDSHAKE_TRIALS / 20 )) ]]; then
+            echo "VM1 log tail:"
+            tail -n 20 "/tmp/vm1_${IF}.log" || true
+            fail "More than 5% of trials failed."
         fi
-        sleep "$POLL_INTERVAL"
-    done
+        continue
+    fi
+
+    echo "$rtt" >> "$RTT_FILE"
 
     [[ $(( i % 100 )) -eq 0 ]] && log "Progress: $i / $HANDSHAKE_TRIALS"
 done
@@ -465,54 +415,29 @@ log "Trials complete: $SUCCESSFUL successful, $FAILED failed."
 echo ""
 
 # =============================================================================
-# Collect VM2 bench log
-# =============================================================================
-log "Collecting VM2 bench log..."
-scp $SSH_OPTS "${VM2_USER}@${VM2_HOST}:$BENCH_LOG_VM2" \
-    "$RESULTS_DIR/bench_vm2_raw.log"
-cp "$BENCH_LOG_VM1" "$RESULTS_DIR/bench_vm1_raw.log"
-log "Logs collected."
-echo ""
-
-# =============================================================================
-# Statistics — single Python invocation over all recorded data
+# Statistics
 # =============================================================================
 python3 - "$RESULTS_DIR" "$KEM_MODE" \
            "$HANDSHAKE_TRIALS" "$SUCCESSFUL" "$FAILED" \
            "$BASELINE_RTT" \
            "$RESULTS_DIR/latency_summary.txt" << 'PYEOF'
-import sys, math, statistics, re
+import sys, math, statistics
 
 results_dir, algo, req, succ, failed, baseline_rtt, out_path = sys.argv[1:]
 
-def parse_ns(path, tag):
-    """Return list of integer nanosecond timestamps for the given tag."""
-    times = []
-    try:
-        with open(path) as f:
-            for line in f:
-                m = re.match(rf'^{tag} (\d+)$', line.strip())
-                if m:
-                    times.append(int(m.group(1)))
-    except FileNotFoundError:
-        pass
-    return times
+rtt_file = f"{results_dir}/handshake_rtts.txt"
+try:
+    with open(rtt_file) as f:
+        data = [float(line.strip()) for line in f if line.strip()]
+except FileNotFoundError:
+    data = []
 
-def paired_durations_ms(starts, ends):
-    """Pair start/end timestamps and return durations in milliseconds."""
-    n = min(len(starts), len(ends))
-    if n == 0:
-        return []
-    return [(ends[i] - starts[i]) / 1e6 for i in range(n)]
-
-def stats(label, data_ms):
-    """Compute and return summary statistics for a list of millisecond values."""
-    if not data_ms:
+def stats(label, d):
+    if not d:
         return [f"{label}_n=0", f"{label}_note=no_data"]
-    d = sorted(data_ms)
+    d = sorted(d)
     n = len(d)
     def pct(p):
-        # Nearest-rank method: ceil(n*p) - 1, clamped to valid indices
         return d[max(0, min(n - 1, math.ceil(n * p) - 1))]
     return [
         f"{label}_n={n}",
@@ -525,24 +450,10 @@ def stats(label, data_ms):
         f"{label}_max_ms={d[-1]:.3f}",
     ]
 
-vm1_log = f"{results_dir}/bench_vm1_raw.log"
-vm2_log = f"{results_dir}/bench_vm2_raw.log"
-
-init_starts = parse_ns(vm1_log, "BENCH_INIT_START_NS")
-init_ends   = parse_ns(vm1_log, "BENCH_INIT_END_NS")
-resp_starts = parse_ns(vm2_log, "BENCH_RESP_START_NS")
-resp_ends   = parse_ns(vm2_log, "BENCH_RESP_END_NS")
-
-init_ms = paired_durations_ms(init_starts, init_ends)
-resp_ms = paired_durations_ms(resp_starts, resp_ends)
-
-# Sanity check: warn if counts are mismatched
-if abs(len(init_starts) - len(init_ends)) > 5:
-    print(f"WARNING: init start count ({len(init_starts)}) "
-          f"differs from end count ({len(init_ends)}) by more than 5")
-if abs(len(resp_starts) - len(resp_ends)) > 5:
-    print(f"WARNING: resp start count ({len(resp_starts)}) "
-          f"differs from end count ({len(resp_ends)}) by more than 5")
+# Handshake RTT = measured ping RTT after expire_keys
+# Net handshake overhead = handshake RTT - baseline ICMP RTT
+baseline = float(baseline_rtt)
+net = [r - baseline for r in data]
 
 lines = (
     [
@@ -551,9 +462,10 @@ lines = (
         f"trials_successful={succ}",
         f"trials_failed={failed}",
         f"baseline_rtt_ms={baseline_rtt}",
+        f"note=handshake_rtt includes baseline ICMP RTT; net_handshake subtracts it",
     ]
-    + stats("initiator", init_ms)
-    + stats("responder", resp_ms)
+    + stats("handshake_rtt", data)
+    + stats("net_handshake", net)
 )
 
 for l in lines:
@@ -566,20 +478,20 @@ PYEOF
 # =============================================================================
 # Summary
 # =============================================================================
-MEAN_INIT=$(grep '^initiator_mean_ms=' "$RESULTS_DIR/latency_summary.txt" \
+MEAN_RTT=$(grep '^handshake_rtt_mean_ms=' "$RESULTS_DIR/latency_summary.txt" \
     | cut -d= -f2 || echo "n/a")
-MEAN_RESP=$(grep '^responder_mean_ms=' "$RESULTS_DIR/latency_summary.txt" \
+MEAN_NET=$(grep '^net_handshake_mean_ms=' "$RESULTS_DIR/latency_summary.txt" \
     | cut -d= -f2 || echo "n/a")
 
 echo ""
 echo "============================================"
 echo " Benchmark complete"
-echo " Algorithm          : $KEM_MODE"
-echo " Trials             : $SUCCESSFUL / $HANDSHAKE_TRIALS successful"
-echo " Initiator mean     : ${MEAN_INIT}ms"
-echo " Responder mean     : ${MEAN_RESP}ms"
-echo " Baseline ICMP RTT  : ${BASELINE_RTT}ms"
-echo " Results            : $RESULTS_DIR"
+echo " Algorithm              : $KEM_MODE"
+echo " Trials                 : $SUCCESSFUL / $HANDSHAKE_TRIALS successful"
+echo " Handshake RTT mean     : ${MEAN_RTT}ms  (includes ICMP baseline)"
+echo " Net handshake mean     : ${MEAN_NET}ms  (baseline subtracted)"
+echo " Baseline ICMP RTT      : ${BASELINE_RTT}ms"
+echo " Results                : $RESULTS_DIR"
 echo "============================================"
 echo ""
 echo "Files written:"
