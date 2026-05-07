@@ -61,7 +61,7 @@ $(OQS_LIBGO_PC): $(OQS_PREFIX)/include/oqs/oqs.h
 oqs: $(OQS_LIBGO_PC)
 
 wireguard-go: oqs $(wildcard *.go) $(wildcard */*.go)
-	$(OQS_PKGCONFIG_ENV) go build -v -o "$@"
+	$(OQS_PKGCONFIG_ENV) CGO_LDFLAGS="-L/tmp/wireguard-go-PQC/deps/liboqs/lib -loqs -lssl -lcrypto" go build -v -o "$@"
 
 install: wireguard-go
 	install -v -d "$(DESTDIR)$(BINDIR)"
