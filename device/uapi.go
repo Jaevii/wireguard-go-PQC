@@ -344,6 +344,20 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		peer.Peer = &Peer{}
 		peer.dummy = true
 
+	case "expire_keys":
+		// expire_keys=true forces the initiator to perform a new handshake on
+		// the next outbound packet without tearing down and recreating the peer.
+		// Used by the benchmark harness to trigger a fresh handshake per trial
+		// with a single local UAPI call and no SSH round-trip.
+		if value != "true" {
+			return ipcErrorf(ipc.IpcErrorInvalid,
+				"invalid expire_keys value: %v", value)
+		}
+		if !peer.dummy {
+			device.log.Verbosef("%v - UAPI: Expiring keypairs (benchmark)", peer.Peer)
+			peer.ExpireCurrentKeypairs()
+		}
+
 	case "preshared_key":
 		device.log.Verbosef("%v - UAPI: Updating preshared key", peer.Peer)
 
