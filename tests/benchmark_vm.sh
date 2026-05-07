@@ -13,6 +13,10 @@
 #   it gets a response. Its RTT therefore directly captures the full
 #   handshake round-trip time. No log files, no cross-VM clock sync needed.
 #
+#   Baseline RTT is re-sampled every BASELINE_INTERVAL trials and stored
+#   alongside each handshake RTT so per-trial net latency is computed against
+#   the most recent baseline rather than a single measurement taken at startup.
+#
 # Usage:
 #   KEM_MODE=classic          bash benchmark_vm.sh
 #   KEM_MODE=mlkem512         bash benchmark_vm.sh
@@ -29,12 +33,13 @@
 #   KEM_MODE=hybrid-hqc256    bash benchmark_vm.sh
 #
 # Environment overrides:
-#   WG_GO_BIN        path to wireguard-go binary  (default: ~/wireguard-go-PQC/wireguard-go)
-#   WG_BIN           path to wg tool              (default: wg)
-#   VM2_HOST         VM2 SSH host                 (default: 10.27.8.11)
-#   VM2_USER         VM2 SSH user                 (default: jaevii)
-#   KEM_MODE         algorithm                    (default: classic)
-#   HANDSHAKE_TRIALS number of handshake trials   (default: 1500)
+#   WG_GO_BIN          path to wireguard-go binary  (default: ~/wireguard-go-PQC/wireguard-go)
+#   WG_BIN             path to wg tool              (default: wg)
+#   VM2_HOST           VM2 SSH host                 (default: 10.27.8.11)
+#   VM2_USER           VM2 SSH user                 (default: jaevii)
+#   KEM_MODE           algorithm                    (default: classic)
+#   HANDSHAKE_TRIALS   number of handshake trials   (default: 3000)
+#   BASELINE_INTERVAL  re-sample baseline every N trials (default: 100)
 # =============================================================================
 set -euo pipefail
 
@@ -59,9 +64,11 @@ PORT1="51820"
 PORT2="51820"
 
 KEM_MODE="${KEM_MODE:-classic}"
-HANDSHAKE_TRIALS="${HANDSHAKE_TRIALS:-1500}"
+HANDSHAKE_TRIALS="${HANDSHAKE_TRIALS:-3000}"
 WARMUP_TRIALS=100
-TRIAL_TIMEOUT=15  # seconds to wait for a single ping/handshake
+TRIAL_TIMEOUT=15        # seconds to wait for a single ping/handshake
+BASELINE_INTERVAL=100   # re-sample baseline every N recorded trials
+BASELINE_PINGS=5        # pings per baseline sample (mean is taken)
 
 RESULTS_DIR="$SCRIPT_DIR/results/$(date +%Y%m%d_%H%M%S)_${KEM_MODE}"
 TMP_DIR="$(mktemp -d)"
@@ -144,16 +151,37 @@ expire_keys() {
         "$(printf 'set=1\npublic_key=%s\nexpire_keys=true' "$P2_PUB_HEX")"
 }
 
+# Sample baseline RTT over the established (non-handshake) session.
+# Does NOT call expire_keys — the session stays live so we measure pure ICMP.
+# Prints the mean RTT in ms, or empty string on failure.
+sample_baseline() {
+    local total=0
+    local count=0
+    local rtt
+    for _ in $(seq 1 "$BASELINE_PINGS"); do
+        rtt=$(ping -c 1 -W 2 "$PEER2_IP" 2>/dev/null \
+            | grep -oP 'time=\K[\d.]+' || echo "")
+        if [[ -n "$rtt" ]]; then
+            total=$(awk "BEGIN{printf \"%.3f\", $total + $rtt}")
+            count=$(( count + 1 ))
+        fi
+    done
+    if [[ $count -gt 0 ]]; then
+        awk "BEGIN{printf \"%.3f\", $total / $count}"
+    fi
+}
+
 # =============================================================================
 # Preflight checks
 # =============================================================================
 echo "============================================"
 echo " wireguard-go KEM handshake benchmark"
-echo " Mode    : $KEM_MODE"
-echo " Trials  : $HANDSHAKE_TRIALS (+ $WARMUP_TRIALS warmup)"
-echo " VM1     : $VM1_HOST_IP (initiator, local)"
-echo " VM2     : $VM2_HOST (responder, SSH)"
-echo " Method  : ping RTT after expire_keys"
+echo " Mode     : $KEM_MODE"
+echo " Trials   : $HANDSHAKE_TRIALS (+ $WARMUP_TRIALS warmup)"
+echo " Baseline : re-sampled every $BASELINE_INTERVAL trials ($BASELINE_PINGS pings each)"
+echo " VM1      : $VM1_HOST_IP (initiator, local)"
+echo " VM2      : $VM2_HOST (responder, SSH)"
+echo " Method   : ping RTT after expire_keys"
 echo "============================================"
 echo ""
 echo "=== Preflight checks ==="
@@ -318,28 +346,17 @@ log "Peers configured."
 echo ""
 
 # =============================================================================
-# Wait for initial handshake and measure baseline ICMP RTT
+# Wait for initial handshake then take first baseline sample
 # =============================================================================
-echo "=== Measuring baseline RTT ==="
+echo "=== Initial baseline RTT ==="
 log "Waiting for initial handshake..."
 ping -c 1 -W 10 "$PEER2_IP" >/dev/null 2>&1 \
     || fail "Initial ping failed — check connectivity."
-
-# Let session fully establish, then measure ICMP-only RTT (no handshake)
 sleep 1
-BASELINE_SAMPLES=()
-for _ in $(seq 1 30); do
-    rtt=$(ping -c 1 -W 2 "$PEER2_IP" 2>/dev/null \
-        | grep -oP 'time=\K[\d.]+' || echo "")
-    [[ -n "$rtt" ]] && BASELINE_SAMPLES+=("$rtt")
-done
 
-[[ ${#BASELINE_SAMPLES[@]} -eq 0 ]] && \
-    fail "Could not measure baseline RTT — no ping responses."
-
-BASELINE_RTT=$(printf '%s\n' "${BASELINE_SAMPLES[@]}" \
-    | awk '{s+=$1; n++} END{printf "%.3f", s/n}')
-log "Baseline ICMP RTT (mean of ${#BASELINE_SAMPLES[@]} samples): ${BASELINE_RTT}ms"
+CURRENT_BASELINE=$(sample_baseline)
+[[ -z "$CURRENT_BASELINE" ]] && fail "Could not measure initial baseline RTT."
+log "Initial baseline RTT: ${CURRENT_BASELINE}ms"
 echo ""
 
 # =============================================================================
@@ -354,7 +371,9 @@ echo ""
     echo "msg_response_bytes=$MSG_RESP_BYTES"
     echo "exceeds_mtu=$EXCEEDS_MTU"
     echo "mtu_limit=$MTU_LIMIT"
-    echo "baseline_rtt_ms=$BASELINE_RTT"
+    echo "initial_baseline_rtt_ms=$CURRENT_BASELINE"
+    echo "baseline_interval=$BASELINE_INTERVAL"
+    echo "baseline_pings=$BASELINE_PINGS"
     echo "vm1=$VM1_HOST_IP"
     echo "vm2=$VM2_HOST"
 } | tee "$RESULTS_DIR/sizes.txt"
@@ -364,31 +383,51 @@ echo ""
 # Warmup — unrecorded trials
 # =============================================================================
 echo "=== Warmup ($WARMUP_TRIALS unrecorded trials) ==="
-for w in $(seq 1 "$WARMUP_TRIALS"); do
+for _ in $(seq 1 "$WARMUP_TRIALS"); do
     expire_keys
     ping -c 1 -W "$TRIAL_TIMEOUT" "$PEER2_IP" >/dev/null 2>&1 || true
-    # Brief pause so the session is fully established before the next expire
     sleep 0.05
 done
 log "Warmup complete."
+
+# Refresh baseline after warmup since the system is now at steady state
+CURRENT_BASELINE=$(sample_baseline)
+[[ -z "$CURRENT_BASELINE" ]] && fail "Could not measure post-warmup baseline RTT."
+log "Post-warmup baseline RTT: ${CURRENT_BASELINE}ms"
 echo ""
 
 # =============================================================================
-# Recorded trials — measure ping RTT after expire_keys
+# Recorded trials
 #
 # Each trial:
-#   1. expire_keys  (local UAPI, no SSH)
-#   2. ping -c 1    (must complete handshake first, RTT = handshake + ICMP)
-#   3. record RTT
+#   1. Re-sample baseline every BASELINE_INTERVAL trials (session stays live,
+#      no expire_keys, so ping measures pure ICMP overhead)
+#   2. expire_keys  (local UAPI, no SSH)
+#   3. ping -c 1    (must complete handshake first, RTT = handshake + ICMP)
+#   4. Write "<handshake_rtt> <baseline_rtt>" to RTT_FILE
 # =============================================================================
 echo "=== Recorded trials ($HANDSHAKE_TRIALS) ==="
 
+# Two-column file: <handshake_rtt_ms> <baseline_rtt_ms>
 RTT_FILE="$RESULTS_DIR/handshake_rtts.txt"
 > "$RTT_FILE"
 
 FAILED=0
 
 for i in $(seq 1 "$HANDSHAKE_TRIALS"); do
+
+    # Re-sample baseline periodically — session is still live at this point,
+    # so no expire_keys needed and the ping measures pure ICMP overhead.
+    if [[ $(( i % BASELINE_INTERVAL )) -eq 1 && $i -gt 1 ]]; then
+        b=$(sample_baseline)
+        if [[ -n "$b" ]]; then
+            CURRENT_BASELINE="$b"
+            log "Baseline refresh at trial $i: ${CURRENT_BASELINE}ms"
+        else
+            log "Baseline refresh at trial $i: failed, keeping ${CURRENT_BASELINE}ms"
+        fi
+    fi
+
     expire_keys
 
     rtt=$(ping -c 1 -W "$TRIAL_TIMEOUT" "$PEER2_IP" 2>/dev/null \
@@ -405,7 +444,8 @@ for i in $(seq 1 "$HANDSHAKE_TRIALS"); do
         continue
     fi
 
-    echo "$rtt" >> "$RTT_FILE"
+    # Write both values so Python can compute per-trial net latency
+    echo "$rtt $CURRENT_BASELINE" >> "$RTT_FILE"
 
     [[ $(( i % 100 )) -eq 0 ]] && log "Progress: $i / $HANDSHAKE_TRIALS"
 done
@@ -419,18 +459,27 @@ echo ""
 # =============================================================================
 python3 - "$RESULTS_DIR" "$KEM_MODE" \
            "$HANDSHAKE_TRIALS" "$SUCCESSFUL" "$FAILED" \
-           "$BASELINE_RTT" \
            "$RESULTS_DIR/latency_summary.txt" << 'PYEOF'
 import sys, math, statistics
 
-results_dir, algo, req, succ, failed, baseline_rtt, out_path = sys.argv[1:]
+results_dir, algo, req, succ, failed, out_path = sys.argv[1:]
 
 rtt_file = f"{results_dir}/handshake_rtts.txt"
+handshake_rtts = []
+baseline_rtts  = []
+net_rtts       = []
+
 try:
     with open(rtt_file) as f:
-        data = [float(line.strip()) for line in f if line.strip()]
+        for line in f:
+            parts = line.strip().split()
+            if len(parts) == 2:
+                h, b = float(parts[0]), float(parts[1])
+                handshake_rtts.append(h)
+                baseline_rtts.append(b)
+                net_rtts.append(h - b)
 except FileNotFoundError:
-    data = []
+    pass
 
 def stats(label, d):
     if not d:
@@ -450,10 +499,9 @@ def stats(label, d):
         f"{label}_max_ms={d[-1]:.3f}",
     ]
 
-# Handshake RTT = measured ping RTT after expire_keys
-# Net handshake overhead = handshake RTT - baseline ICMP RTT
-baseline = float(baseline_rtt)
-net = [r - baseline for r in data]
+# Mean and stddev of all per-trial baselines — useful sanity check for drift
+baseline_mean   = f"{statistics.mean(baseline_rtts):.3f}"   if baseline_rtts else "n/a"
+baseline_stddev = f"{statistics.pstdev(baseline_rtts):.3f}" if baseline_rtts else "n/a"
 
 lines = (
     [
@@ -461,11 +509,13 @@ lines = (
         f"trials_requested={req}",
         f"trials_successful={succ}",
         f"trials_failed={failed}",
-        f"baseline_rtt_ms={baseline_rtt}",
-        f"note=handshake_rtt includes baseline ICMP RTT; net_handshake subtracts it",
+        f"baseline_mean_ms={baseline_mean}",
+        f"baseline_stddev_ms={baseline_stddev}",
+        f"note=net_handshake subtracts per-trial rolling baseline from handshake RTT",
     ]
-    + stats("handshake_rtt", data)
-    + stats("net_handshake", net)
+    + stats("handshake_rtt", handshake_rtts)
+    + stats("net_handshake", net_rtts)
+    + stats("baseline", baseline_rtts)
 )
 
 for l in lines:
@@ -478,9 +528,13 @@ PYEOF
 # =============================================================================
 # Summary
 # =============================================================================
-MEAN_RTT=$(grep '^handshake_rtt_mean_ms=' "$RESULTS_DIR/latency_summary.txt" \
+MEAN_RTT=$(grep  '^handshake_rtt_mean_ms=' "$RESULTS_DIR/latency_summary.txt" \
     | cut -d= -f2 || echo "n/a")
-MEAN_NET=$(grep '^net_handshake_mean_ms=' "$RESULTS_DIR/latency_summary.txt" \
+MEAN_NET=$(grep  '^net_handshake_mean_ms=' "$RESULTS_DIR/latency_summary.txt" \
+    | cut -d= -f2 || echo "n/a")
+MEAN_BASE=$(grep '^baseline_mean_ms='      "$RESULTS_DIR/latency_summary.txt" \
+    | cut -d= -f2 || echo "n/a")
+STDDEV_BASE=$(grep '^baseline_stddev_ms='  "$RESULTS_DIR/latency_summary.txt" \
     | cut -d= -f2 || echo "n/a")
 
 echo ""
@@ -489,8 +543,8 @@ echo " Benchmark complete"
 echo " Algorithm              : $KEM_MODE"
 echo " Trials                 : $SUCCESSFUL / $HANDSHAKE_TRIALS successful"
 echo " Handshake RTT mean     : ${MEAN_RTT}ms  (includes ICMP baseline)"
-echo " Net handshake mean     : ${MEAN_NET}ms  (baseline subtracted)"
-echo " Baseline ICMP RTT      : ${BASELINE_RTT}ms"
+echo " Net handshake mean     : ${MEAN_NET}ms  (per-trial baseline subtracted)"
+echo " Baseline mean          : ${MEAN_BASE}ms (stddev: ${STDDEV_BASE}ms)"
 echo " Results                : $RESULTS_DIR"
 echo "============================================"
 echo ""
