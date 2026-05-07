@@ -56,6 +56,7 @@ $(OQS_PREFIX)/include/oqs/oqs.h: $(OQS_BUILD_DIR)/CMakeCache.txt
 $(OQS_LIBGO_PC): $(OQS_PREFIX)/include/oqs/oqs.h
 	mkdir -p "$(OQS_PKGCONFIG_DIR)"
 	cp "$(OQS_PKGCONFIG_DIR)/liboqs.pc" "$(OQS_LIBGO_PC)"
+	sed -i 's|^Libs:.*|& -lssl -lcrypto|' "$(OQS_LIBGO_PC)"
 
 oqs: $(OQS_LIBGO_PC)
 
