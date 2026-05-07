@@ -59,9 +59,9 @@ PORT1="51820"
 PORT2="51820"
 
 KEM_MODE="${KEM_MODE:-classic}"
-HANDSHAKE_TRIALS="${HANDSHAKE_TRIALS:-150}"
-WARMUP_TRIALS=10
-TRIAL_TIMEOUT=5  # seconds to wait for a single ping/handshake
+HANDSHAKE_TRIALS="${HANDSHAKE_TRIALS:-1500}"
+WARMUP_TRIALS=100
+TRIAL_TIMEOUT=15  # seconds to wait for a single ping/handshake
 
 RESULTS_DIR="$SCRIPT_DIR/results/$(date +%Y%m%d_%H%M%S)_${KEM_MODE}"
 TMP_DIR="$(mktemp -d)"
