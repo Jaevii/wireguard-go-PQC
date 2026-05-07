@@ -127,7 +127,10 @@ uapi_set() {
 
 # Count lines matching a pattern in a file, returns 0 if file missing
 count_lines() {
-    grep -c "$1" "$2" 2>/dev/null || echo 0
+    local pattern="$1"
+    local file="$2"
+    [[ -f "$file" ]] || { echo 0; return; }
+    grep -c "$pattern" "$file" || echo 0
 }
 
 wait_for_socket_local() {
