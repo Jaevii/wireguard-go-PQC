@@ -129,8 +129,13 @@ uapi_set() {
 count_lines() {
     local pattern="$1"
     local file="$2"
-    [[ -f "$file" ]] || { echo 0; return; }
-    grep -c "$pattern" "$file" || echo 0
+    if [[ ! -f "$file" ]]; then
+        echo 0
+        return
+    fi
+    local n
+    n=$(grep -c "$pattern" "$file" 2>/dev/null) || n=0
+    echo "$n"
 }
 
 wait_for_socket_local() {
@@ -405,7 +410,7 @@ for w in $(seq 1 "$WARMUP_TRIALS"); do
 
     # Wait for completion so we don't overlap into the next warmup trial
     DEADLINE=$(( $(date +%s) + TRIAL_TIMEOUT ))
-    while (( $(count_lines '^BENCH_INIT_END_NS' "$BENCH_LOG_VM1") < w )); do
+    while [[ $(count_lines '^BENCH_INIT_END_NS' "$BENCH_LOG_VM1") -lt $w ]]; do
         [[ $(date +%s) -ge $DEADLINE ]] && break
         sleep "$POLL_INTERVAL"
     done
@@ -435,7 +440,7 @@ for i in $(seq 1 "$HANDSHAKE_TRIALS"); do
 
     # Wait until the Go binary has logged BENCH_INIT_END_NS for this trial
     DEADLINE=$(( $(date +%s) + TRIAL_TIMEOUT ))
-    while (( $(count_lines '^BENCH_INIT_END_NS' "$BENCH_LOG_VM1") < i )); do
+    while [[ $(count_lines '^BENCH_INIT_END_NS' "$BENCH_LOG_VM1") -lt $i ]]; do
         if [[ $(date +%s) -ge $DEADLINE ]]; then
             log "Trial $i: FAILED — no BENCH_INIT_END_NS within ${TRIAL_TIMEOUT}s."
             FAILED=$(( FAILED + 1 ))
