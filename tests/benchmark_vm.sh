@@ -404,50 +404,11 @@ echo "=== [1/2] Algorithm parameters ==="
 echo ""
 
 # =============================================================================
-# Baseline tunnel RTT (established session, no handshake)
-# =============================================================================
-echo "=== Baseline tunnel RTT (established session, no handshake) ==="
-
-reset_peers "$P1_PUB" "$P2_PUB" "$P1_KEM_PUB" "$P2_KEM_PUB"
-
-log "Waiting for tunnel to pass traffic..."
-for _ in $(seq 1 30); do
-    if ping -c 1 -W 1 "$PEER2_IP" >/dev/null 2>&1; then
-        log "Tunnel is up."
-        break
-    fi
-    sleep 0.5
-done
-
-RTT_SAMPLES=()
-RTT_COUNT=${HANDSHAKE_TRIALS}
-RTT_DISCARD=25
-
-for ((i = 1; i <= RTT_COUNT + RTT_DISCARD; i++)); do
-    T0=$(ns_now)
-    ping -c 1 -W 1 "$PEER2_IP" >/dev/null 2>&1
-    T1=$(ns_now)
-    if [[ "$i" -gt "$RTT_DISCARD" ]]; then
-        RTT_SAMPLES+=("$(python3 -c "print(f'{($T1-$T0)/1e6:.3f}')")")
-    fi
-done
-
-BASELINE_RTT=$(printf '%s\n' "${RTT_SAMPLES[@]}" | awk '
-    BEGIN { sum=0; n=0 }
-    { sum += $1; n++ }
-    END { printf "%.3f", sum/n }')
-
-echo "  Baseline tunnel RTT : ${BASELINE_RTT}ms (avg of $RTT_COUNT pings, no handshake)"
-echo "  True handshake crypto cost ≈ measured latency − ${BASELINE_RTT}ms"
-echo ""
-echo "baseline_tunnel_rtt_ms=$BASELINE_RTT" >> "$RESULTS_DIR/sizes.txt"
-
-# =============================================================================
 # Handshake latency trials
 # =============================================================================
-echo "=== [2/2] Handshake latency ($HANDSHAKE_TRIALS trials) ==="
+echo "=== Handshake latency ($HANDSHAKE_TRIALS trials) ==="
 
-WARMUP_COUNT=25
+WARMUP_COUNT=50
 echo "  Warming up ($WARMUP_COUNT unrecorded handshakes)..."
 for _ in $(seq 1 "$WARMUP_COUNT"); do
     reset_peers "$P1_PUB" "$P2_PUB" "$P1_KEM_PUB" "$P2_KEM_PUB"
@@ -526,7 +487,6 @@ printf '%s\n' "${LATENCIES[@]}" > "$RESULTS_DIR/latency_raw.csv"
 } | tee "$RESULTS_DIR/latency_summary.txt"
 
 MEAN_MS=$(grep "^latency_mean_ms=" "$RESULTS_DIR/latency_summary.txt" | cut -d= -f2)
-ADJUSTED_MS=$(python3 -c "print(f'{max(0.0, $MEAN_MS - $BASELINE_RTT):.3f}')")
 
 # =============================================================================
 # Summary
@@ -534,12 +494,11 @@ ADJUSTED_MS=$(python3 -c "print(f'{max(0.0, $MEAN_MS - $BASELINE_RTT):.3f}')")
 echo ""
 echo "============================================"
 echo " Benchmark complete"
-echo " Algorithm : $KEM_MODE"
-echo " Trials    : $SUCCESSFUL_TRIALS / $HANDSHAKE_TRIALS successful"
-echo " Mean latency       : ${MEAN_MS}ms"
-echo " Baseline RTT       : ${BASELINE_RTT}ms"
-echo " Corrected latency  : ${ADJUSTED_MS}ms (approx. crypto cost only)"
-echo " Results            : $RESULTS_DIR"
+echo " Algorithm        : $KEM_MODE"
+echo " Trials           : $SUCCESSFUL_TRIALS / $HANDSHAKE_TRIALS successful"
+echo " Mean latency     : ${MEAN_MS}ms"
+echo " Baseline RTT     : ${BASELINE_RTT}ms"
+echo " Results          : $RESULTS_DIR"
 echo "============================================"
 echo ""
 echo "Files written:"
