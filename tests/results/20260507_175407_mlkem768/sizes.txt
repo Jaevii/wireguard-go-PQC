@@ -1,0 +1,13 @@
+algorithm=mlkem768
+pubkey_bytes=1184
+ciphertext_bytes=1088
+shared_secret_bytes=32
+msg_initiation_bytes=3540
+msg_response_bytes=1148
+exceeds_mtu=true
+mtu_limit=1472
+initial_baseline_rtt_ms=0.656
+baseline_interval=100
+baseline_pings=5
+vm1=10.27.8.10
+vm2=10.27.8.11

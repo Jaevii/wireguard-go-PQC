@@ -64,7 +64,7 @@ PORT1="51820"
 PORT2="51820"
 
 KEM_MODE="${KEM_MODE:-classic}"
-HANDSHAKE_TRIALS="${HANDSHAKE_TRIALS:-3000}"
+HANDSHAKE_TRIALS="${HANDSHAKE_TRIALS:-5000}"
 WARMUP_TRIALS=100
 TRIAL_TIMEOUT=15        # seconds to wait for a single ping/handshake
 BASELINE_INTERVAL=100   # re-sample baseline every N recorded trials

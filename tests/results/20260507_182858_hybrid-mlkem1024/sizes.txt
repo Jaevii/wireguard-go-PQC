@@ -1,0 +1,13 @@
+algorithm=hybrid-mlkem1024
+pubkey_bytes=1568
+ciphertext_bytes=1568
+shared_secret_bytes=32
+msg_initiation_bytes=1716
+msg_response_bytes=1660
+exceeds_mtu=true
+mtu_limit=1472
+initial_baseline_rtt_ms=0.579
+baseline_interval=100
+baseline_pings=5
+vm1=10.27.8.10
+vm2=10.27.8.11
