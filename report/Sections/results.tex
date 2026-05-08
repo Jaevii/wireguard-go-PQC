@@ -6,7 +6,7 @@
 \centering
 \begin{tabular}{|l|rrrr|}
 \hline
-\multirow{2}{*}{\textbf{Variant}} & Initial & Response & Baseline RTT & Net Handshake Time \\
+\multirow{2}{*}{\textbf{Variant}} & Initial & Response & Baseline RTT & Handshake Time \\
                          & [Bytes] & [Bytes] & [ms] & [ms] \\
 \hline
 \multirow{2}{*}{Classic} & 148 & 92 & 0.522 & 1.820 \\
@@ -38,9 +38,21 @@
 \hline
 \end{tabular}
 \caption{Values inside parentheses are standard deviation.}
-\label{tab:your_label}
+\label{tab:Results}
 \end{table}
 
-\subsection{The clear winner}
+\subsection{Message Sizes}
 
+
+\subsection{Handshake Latency}
+ML-KEM faster than classic - aes
+
+\subsection{Comparisons}
+PQ-WireGuard
+
+Rosenpass
+
+Rebar
+
+\subsection{The Clear Winner}
 Hybrid-MLKEM-768

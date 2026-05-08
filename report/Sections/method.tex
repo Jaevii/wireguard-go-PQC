@@ -1,12 +1,19 @@
 \newpage
 \section{Method}
 
+\subsection{Design Choices and Rationale}
+
+
+\subsection{Security Goals}
+Level 3 and 5 parameters for all classification levels (NSA Commercial National Security Algorithm Suite 2.0).
+
+\subsection{Literature Review}
+
+
 \subsection{Implementation}
 WireGuard-Go + liboqs
 
-Staying within WireGuard's 1420-byte packet constraint is impossible while maintaining full authentication.
-
-\subsection{Hybrid}
+\subsubsection{Hybrid}
 
 \begin{figure}[H]
 \centering
@@ -17,22 +24,23 @@ Staying within WireGuard's 1420-byte packet constraint is impossible while maint
 
 Hybrid is architecturally stronger than PSK injection because it provides per-session PQC forward secrecy and tighter binding between authentication and key agreement, at the cost of larger messages and a more invasive implementation. PSK injection is a practical deployment shortcut that achieves most of the confidentiality benefit without touching WireGuard's internals.
 
-\subsection{Pure-KEM}
+\subsubsection{Pure-KEM}
 
 
-\subsection{Benchmarking setup}
-
-Linux VM 
-\begin{itemize}
-    \item Single-core
-    \item aes
-    \item vSwitch
-\end{itemize}
-
-1500 MTU IPv4
+\subsection{Measurement Methodology}
+Warm-up runs
 
 5000 handshakes (reestablish keys + ping to confirm session)
 
 Rolling RTT measurement (5 pings every 100 handshakes)
 
-Level 3 and 5 parameters for all classification levels (NSA Commercial National Security Algorithm Suite 2.0).
+Net handshake time
+
+\subsection{Benchmarking Setup}
+Linux VM 
+\begin{itemize}
+    \item Single-core
+    \item aes
+    \item vSwitch
+    \item 1500 MTU IPv4
+\end{itemize}
