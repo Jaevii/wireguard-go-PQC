@@ -1,26 +1,46 @@
 \newpage
 \section{Method}
-WireGuard-Go + liboqs
 
-Use Level V parameters for all classification levels (NSA Commercial National Security Algorithm Suite 2.0).
+\subsection{Design Choices and Rationale}
 
-\subsection{Benchmarking setups}
 
-\begin{itemize}
-    \item WireGuard native macOS client 
-    \item WireGuard-Go default 
-    \item WireGuard-Go PQC 
-    \begin{itemize}
-        \item ML-KEM
-        \item HQC
-    \end{itemize}
-    \item WireGuard-Go Hybrid 
-    \item WireGuard-Go Linux VM 
-\end{itemize}
+\subsection{Security Goals}
+Level 3 and 5 parameters for all classification levels (NSA Commercial National Security Algorithm Suite 2.0).
 
-1500 handshakes
+\subsection{Literature Review}
+
 
 \subsection{Implementation}
-staying within WireGuard's 1232-byte packet constraint is impossible while maintaining full authentication.
+WireGuard-Go + liboqs
 
-For your thesis the most accurate characterization is: your hybrid is architecturally stronger than PSK injection because it provides per-session PQC forward secrecy and tighter binding between authentication and key agreement, at the cost of larger messages and a more invasive implementation. PSK injection is a practical deployment shortcut that achieves most of the confidentiality benefit without touching WireGuard's internals.
+\subsubsection{Hybrid}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{Images/hybrid.png}
+\caption{A flow diagram of a hybrid key exchange}
+\label{fig:HYBRIDKEM}
+\end{figure}
+
+Hybrid is architecturally stronger than PSK injection because it provides per-session PQC forward secrecy and tighter binding between authentication and key agreement, at the cost of larger messages and a more invasive implementation. PSK injection is a practical deployment shortcut that achieves most of the confidentiality benefit without touching WireGuard's internals.
+
+\subsubsection{Pure-KEM}
+
+
+\subsection{Measurement Methodology}
+Warm-up runs
+
+5000 handshakes (reestablish keys + ping to confirm session)
+
+Rolling RTT measurement (5 pings every 100 handshakes)
+
+Net handshake time
+
+\subsection{Benchmarking Setup}
+Linux VM 
+\begin{itemize}
+    \item Single-core
+    \item aes
+    \item vSwitch
+    \item 1500 MTU IPv4
+\end{itemize}

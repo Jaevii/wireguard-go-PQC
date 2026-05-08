@@ -8,9 +8,9 @@ PQ-WireGuard serves as an important performance reference point as the algorithm
 
 Rosenpass \cite{rosenpass}, developed by Varner, Lipp, Schmidt, Peischl, and Zaeske, takes a different approach to the integration problem. Rather than replacing the WireGuard handshake entirely, Rosenpass runs as a separate process alongside WireGuard and performs a post-quantum key exchange independently. The resulting shared secret is then supplied to WireGuard as its pre-shared symmetric key (PSK), producing a hybrid connection where security holds as long as either the classical WireGuard handshake or the Rosenpass key exchange remains secure.
 
-This sidecar architecture sidesteps the MTU problem entirely, since Rosenpass is not constrained by WireGuard's packet size budget. It also avoids any modification to WireGuard's codebase, making it practical to deploy today without kernel changes. The protocol builds on the PQ-WireGuard design but improves it by adding resistance against state disruption attacks, where an adversary replays the first handshake message to disrupt the responder's state. Rosenpass addresses this by returning an encrypted cookie to the initiator, so that the responder does not commit state until the initiator proves reachability. The implementation is written in Rust and uses Classic McEliece for long-term keys and ML-KEM for ephemeral keys.
+This sidecar architecture sidesteps the MTU problem entirely, since Rosenpass is not constrained by WireGuard's packet size budget. It also avoids any modification to WireGuard's codebase, making it practical to deploy today without kernel changes. The protocol builds on the PQ-WireGuard design but improves it by adding resistance against state disruption attacks, where an adversary replays the first handshake message to disrupt the responder's state. Rosenpass addresses this by returning an encrypted cookie to the initiator, so that the responder does not commit state until the initiator proves reachability. The implementation is written in Rust and uses Classic McEliece for long-term keys and CRYSTALS-Kyber (pre-standardization ML-KEM) for ephemeral keys.
 
-For this thesis, Rosenpass is relevant as a deployed reference implementation that already uses ML-KEM in a production context. Its PSK-based integration strategy also represents a natural performance baseline: since it adds a separate handshake on top of WireGuard rather than replacing it, the combined latency is higher than a fully integrated solution. The performance results in this thesis can therefore be interpreted in the context of whether a deeper integration actually yields a meaningful latency improvement over the Rosenpass approach.
+For this thesis, Rosenpass is relevant as a deployed reference implementation that uses CRYSTALS-Kyber in a production context. Its PSK-based integration strategy also represents a natural performance baseline: since it adds a separate handshake on top of WireGuard rather than replacing it, the combined latency is higher than a fully integrated solution. The performance results in this thesis can therefore be interpreted in the context of whether a deeper integration actually yields a meaningful latency improvement over the Rosenpass approach.
 
 The most recent related work is by Hashimoto, Katsumata, Niot, and Wiggers, to appear at IEEE S\&P 2026 \cite{rebar}. This paper revisits the original PQ-WireGuard design by Hülsing et al. and improves it across three dimensions: protocol design, computational security, and efficiency.
 
@@ -18,17 +18,10 @@ On the design side, the paper introduces the novel idea of \textit{reinforced KE
 
 On the security side, the paper extends the computational security analysis beyond what was covered in the original work, which relied on the symbolic model for several of its security properties.
 
-On the efficiency side, the RKEM-based redesign eliminates the need for Classic McEliece entirely. By using two instances of ML-KEM, the large public key sizes and associated memory overhead of the original design are avoided, making the protocol significantly more practical for deployment.
+On the efficiency side, the RKEM-based redesign eliminates the need for Classic McEliece entirely. By using two instances of ML-KEM, the large public key sizes and associated memory overhead of the original design are avoided. Crucially, the design exploits WireGuard's out-of-band static key provisioning, described in Section~\ref{sec:wg-keys}, so that large static public keys never need to be transmitted within the handshake messages themselves. This makes the protocol significantly more practical for deployment.
 
 This paper represents the current state of the art for formally analyzed post-quantum WireGuard designs, and it uses ML-KEM as its primary building block, the same algorithm that is evaluated in this thesis. While this thesis does not implement the RKEM construction, the performance characteristics of ML-KEM measured here are directly relevant to understanding the practical cost of the approach proposed by Hashimoto et al.
 
 \newpage
 \section{Concurrent Work}
-
-Tailscale
-
-Other VPNs implementing PQC
-
-NIST Post-Quantum Cryptography Standardization Process \cite{nistpqc} and HQC standardization process
-
-Regev's Algorithm \cite{Regev2023EfficientFactoring} and discrete logarithms extension \cite{Ekera2024RegevDLog}
+The NIST Post-Quantum Cryptography Standardization Process~\cite{nistpqc} continues in parallel with this thesis. ML-KEM was finalized as FIPS 203 in August 2024 and is the algorithm evaluated in this work. HQC was selected as a backup standard in March 2025 and is currently undergoing draft standardization, with a final standard expected in 2027~\cite{Moody2025NISTIR8545}. The ongoing standardization of HQC is directly relevant to one of the central comparisons in this thesis, as the performance results for HQC reported here reflect the current reference implementation rather than a finalized, optimized standard.

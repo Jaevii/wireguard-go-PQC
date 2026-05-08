@@ -1,2 +1,58 @@
 \newpage
 \section{Results}
+
+\subsection{Metrics}
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|rrrr|}
+\hline
+\multirow{2}{*}{\textbf{Variant}} & Initial & Response & Baseline RTT & Handshake Time \\
+                         & [Bytes] & [Bytes] & [ms] & [ms] \\
+\hline
+\multirow{2}{*}{Classic} & 148 & 92 & 0.522 & 1.820 \\
+                         &  &  & (0.041) & (0.245) \\
+\hline
+\multirow{2}{*}{MLKEM-768} & 3540 & 1088 & 0.511 & 1.172 \\
+                         &  &  & (0.034) & (0.231) \\
+\hline
+\multirow{2}{*}{MLKEM-1024} & 4788 & 1628 & 0.521 & 1.437 \\
+                         &  &  & (0.052) & (0.243) \\
+\hline
+\multirow{2}{*}{Hybrid-MLKEM-768} & 1332 & 1180 & 0.525 & 2.228 \\
+                         &  &  & (0.063) & (0.283) \\
+\hline
+\multirow{2}{*}{Hybrid-MLKEM-1024} & 1716 & 1660 & 0.517 & 2.374 \\
+                         &  &  & (0.035) & (0.336) \\
+\hline
+\multirow{2}{*}{HQC-192} & 18106 & 9038 & 0.529 & 364.038 \\
+                         &  &  & (0.047) & (14.302) \\
+\hline
+\multirow{2}{*}{HQC-256} & 28995 & 14481 & 0.520 & 668.182 \\
+                         &  &  & (0.044) & (23.451) \\
+\hline
+\multirow{2}{*}{Hybrid-HQC-192} & 4670 & 9070 & 0.549 & 201.687 \\
+                         &  &  & (0.059) & (8.220) \\
+\hline
+\multirow{2}{*}{Hybrid-HQC-256} & 7393 & 14513 & 0.538 & 365.557 \\
+                         &  &  & (0.062) & (14.777) \\
+\hline
+\end{tabular}
+\caption{Values inside parentheses are standard deviation.}
+\label{tab:Results}
+\end{table}
+
+\subsection{Message Sizes}
+
+
+\subsection{Handshake Latency}
+ML-KEM faster than classic - aes
+
+\subsection{Comparisons}
+PQ-WireGuard
+
+Rosenpass
+
+Rebar
+
+\subsection{The Clear Winner}
+Hybrid-MLKEM-768
