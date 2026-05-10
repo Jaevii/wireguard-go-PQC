@@ -22,38 +22,34 @@ Yet, few studies have systematically compared the performance characteristics of
 
 This thesis addresses that gap by designing, implementing, and evaluating a hybrid WireGuard handshake that supports two NIST-selected Key-Encapsulation Mechanisms: ML-KEM and Hamming Quasi-Cyclic. The implementation enables an empirical comparison of their latency, computational overhead, memory usage, and message size, and contrasts the results against existing post-quantum WireGuard implementations. By quantifying these trade-offs, the work aims to provide practical insights into the real-world viability of post-quantum VPNs and contribute to the broader effort of securing Internet communications against future quantum threats.
 
-\subsection{Problem statement and research questions}
+\subsection{Problem statement and research questions}\label{research_questions}
 \textit{How does NIST-approved Post-Quantum Key-Encapsulation Mechanisms, specifically ML-KEM and HQC, affect the performance, resource usage, and practical deployability of a post-quantum secure WireGuard handshake compared to existing  approaches?}
 
 \begin{enumerate}[label=\textbf{RQ\arabic*.}]
-    \item How does NIST-selected post-quantum key encapsulation mechanisms, specifically ML-KEM and HQC, affect the performance of a WireGuard handshake?
+    \item How do NIST-selected post-quantum key encapsulation mechanisms, specifically ML-KEM and HQC, affect the performance of a WireGuard handshake?
 
     \item What impact do ML-KEM and HQC have on resource usage in WireGuard, particularly in terms of message size and storage requirements?
 
-    \item To what extent can ML-KEM and HQC be integrated into WireGuard without violating its core design principles, such as low latency, small handshake size, and simplicity?
+    \item To what extent can ML-KEM and HQC be integrated into WireGuard without violating its core design principles, such as low latency and small handshake size?
 
-    \item How does hybrid cryptographic approaches (combining classical Diffie-Hellman with PQC) compare to purely post-quantum approaches in terms of security, performance, and deployability?
+    \item How do hybrid cryptographic approaches (combining classical Diffie-Hellman with PQC) compare to purely post-quantum approaches in terms of security, performance, and deployability?
 
     \item How does a hybrid WireGuard implementation using ML-KEM and HQC compare to existing post-quantum solutions, such as Rosenpass, in terms of performance and practical deployment?
 
     \item What trade-offs exist between security level and ciphertext size when selecting PQC algorithms for use in WireGuard?
 \end{enumerate}
 
-\subsection{Scope and limitations}
+\subsection{Scope and Limitations} 
+This thesis covers the design, implementation, and empirical evaluation of post-quantum KEM integration into WireGuard's handshake, using ML-KEM and HQC at NIST security levels 3 and 5. The implementation contains both a hybrid mode, which augments the classical handshake with an additional KEM operation, and a pure-KEM mode, which replaces the classical exchange entirely, are implemented and benchmarked. 
 
-\subsubsection*{Core scope:}
-\begin{itemize}
-    \item Userspace implementation in WireGuard-Go (no kernel changes)
-    \item Evaluation on one primary hardware platform
-    \item Comparative analysis and thesis documentation
-\end{itemize}
+Several limitations apply to this work. The implementation is built using \texttt{wireguard-go}, the userspace Go implementation of WireGuard, and does not modify the Linux kernel module. Performance numbers from the kernel implementation would be better due to the absence of TUN interface overhead, so the results here should not be taken as representative of a future kernel-level deployment. 
 
-\subsubsection*{Stretch goals:}
-\begin{itemize}
-    \item Cross-platform benchmarks (energy/performance scaling)
-    \item Symbolic or formal modeling of the hybrid handshake
-    \item Basic side-channel timing variance analysis
-\end{itemize}
+All benchmarks were conducted on a single hardware platform: two virtual machines running on the same KVM hypervisor. No measurements were taken on physical server hardware, ARM-based processors, or mobile devices.
+
+The benchmark environment uses a virtual network on a single physical host, which eliminates packet loss and real-network jitter. In particular, large handshake messages that exceed the standard MTU are fragmented and reassembled entirely in software, without the reliability problems that IP fragmentation causes on real network paths. Thus, the HQC results in this thesis are measured under more favorable conditions than a real deployment would provide. 
+
+The security analysis of the hybrid and pure-KEM handshake constructions is informal. No formal verification or symbolic proof is provided, and the security arguments in this thesis are based on design reasoning rather than machine-checked proofs. This is consistent with the scope of the related work that this thesis builds on, but it means the security claims are weaker than those of formally analyzed designs.
+
 
 \subsection{The scarlet thread}
 The central theme of this thesis is the integration of post-quantum cryptographic algorithms into the secure communication VPN protocol WireGuard. 
@@ -64,23 +60,21 @@ The thesis follows a progression from theoretical foundations to practical appli
 
 The main focus of the thesis is the evaluation of how these algorithms can be integrated into the WireGuard protocol, particularly through hybrid cryptographic approaches. This includes analyzing the impact on performance, storage requirements, and protocol design constraints. Finally, the proposed approaches are compared to existing solutions, such as Rosenpass, in order to assess their practical viability.
 
-\subsection{Thesis structure}
+\subsection{Thesis Structure} 
 The remainder of this thesis is structured as follows.
 
-Section 2.1 provides background on classical cryptography, including public-key cryptographic schemes such as RSA, Diffie-Hellman, and elliptic-curve cryptography. It also introduces key concepts such as key exchange and key encapsulation mechanisms.
+Section 2 provides the necessary background. It begins with classical cryptography, covering classical public-key primitives such as RSA, Diffie-Hellman, and elliptic-curve cryptography, along with key concepts such as key exchange and key encapsulation mechanisms. It then introduces the quantum threat, including a high-level overview of quantum computing and the algorithms that break classical cryptography: Shor's and Grover's algorithms, as well as the ``harvest now, decrypt later'' risk model. Finally, it introduces post-quantum cryptography, covering the main algorithm families with a focus on ML-KEM and HQC, and discusses hybrid cryptographic approaches and the practical challenges of deploying PQC in real protocols. 
 
-Section 2.2 presents the quantum threat to modern cryptography. This includes a high-level overview of quantum computing and relevant algorithms such as Shor's and Grover's algorithms, as well as the ``Harvest now, decrypt later.'' risk model.
+Section 3 covers the WireGuard protocol. It describes its design principles, the Noise Protocol Framework, the IKpsk2 handshake pattern, the cryptographic primitives in use, the full handshake flow, and the Go implementation. It also discusses the specific challenges that arise when integrating post-quantum algorithms into WireGuard. 
 
-Section 2.3 introduces Post-Quantum Cryptography. It introduces different families of post-quantum algorithms, with a focus on ML-KEM and HQC, and analyzes their properties, practical challenges, and trade-offs. Hybrid cryptographic approaches are also presented.
+Section 4 discusses the related work on post-quantum WireGuard, covering the original PQ-WireGuard by Hülsing et al., the Rosenpass sidecar approach, and the recent Rebar redesign using reinforced KEMs by Hashimoto et al.
 
-Section 3 focuses on the WireGuard protocol. It describes its core design principles, underlying cryptographic framework, handshake mechanism, and discusses the challenges of integrating PQC algorithms into this context.
+Section 5 describes concurrent work, covering the ongoing NIST standardization of HQC and the deployment of hybrid ML-KEM in TLS 1.3.
 
-Section 4 Related work discusses three previous approaches to solve this issue.
+Section 6 describes the research method. It covers the literature study, protocol analysis, design decisions, implementation of both the hybrid and pure-KEM handshake variants, measurement methodology, and benchmarking setup. It concludes with a discussion of reliability, validity, and generalizability. 
 
-Section 5 Concurrent work 
+Section 7 presents the results of the benchmark: handshake latency, message sizes, and storage requirements for all nine evaluated variants, compares them against the related work, and describes how they answer the research questions. 
 
-Section 6 Method 
+Section 8 discusses 
 
-Section 7 presents an evaluation of hybrid-KEM and pure-KEM post-quantum approaches in WireGuard. This includes analysis of performance and implementation considerations, as well as a comparison against existing solutions such as Rosenpass.
-
-Finally, Section 8 and 9 concludes the thesis and discusses potential directions for future work.
+Section 9 concludes 

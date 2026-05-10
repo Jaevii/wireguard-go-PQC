@@ -1,8 +1,20 @@
 \newpage
-\section{Results}
+\section{Results}\label{sec:results}
+This section presents the empirical results from the benchmark described in Section \ref{sec:measurement}. The results cover handshake latency, message sizes, and memory footprint for each of the nine evaluated variants: classical WireGuard, four ML-KEM variants (hybrid and pure, at security levels 3 and 5), and four HQC variants (hybrid and pure, at security levels 3 and 5). The results are then used to answer the research questions posed in Section \ref{research_questions} and to draw comparisons with the related work.
+
 
 \subsection{Metrics}
-\begin{table}[h]
+Table ref{tab:Results} reports the following values for each variant:
+
+\begin{itemize} 
+    \item \textbf{Initial [Bytes]:} The on-wire size of the initiation message in bytes. 
+    \item \textbf{Response [Bytes]:} The on-wire size of the response message in bytes. 
+    \item \textbf{Baseline RTT [ms]:} The mean RTT of five consecutive pings issued on an already-established session, representing pure network overhead with no handshake. The standard deviation of the baseline is shown in parentheses. \item \textbf{Handshake Time [ms]:} The mean baseline-subtracted RTT over 5000 trials, reflecting the duration of the handshake itself. The standard deviation is shown in parentheses. 
+\end{itemize}
+
+The baseline RTT is consistent at approximately \qty{0.5}{ms} across all nine variants, which confirms that the underlying virtual network conditions did not change between runs and that differences in handshake time reflect cryptographic overhead rather than measurement noise.
+
+\begin{table}[H]
 \centering
 \begin{tabular}{|l|rrrr|}
 \hline
@@ -12,10 +24,10 @@
 \multirow{2}{*}{Classic} & 148 & 92 & 0.522 & 1.820 \\
                          &  &  & (0.041) & (0.245) \\
 \hline
-\multirow{2}{*}{MLKEM-768} & 3540 & 1088 & 0.511 & 1.172 \\
+\multirow{2}{*}{Pure-MLKEM-768} & 3540 & 1088 & 0.511 & 1.172 \\
                          &  &  & (0.034) & (0.231) \\
 \hline
-\multirow{2}{*}{MLKEM-1024} & 4788 & 1628 & 0.521 & 1.437 \\
+\multirow{2}{*}{Pure-MLKEM-1024} & 4788 & 1628 & 0.521 & 1.437 \\
                          &  &  & (0.052) & (0.243) \\
 \hline
 \multirow{2}{*}{Hybrid-MLKEM-768} & 1332 & 1180 & 0.525 & 2.228 \\
@@ -24,10 +36,10 @@
 \multirow{2}{*}{Hybrid-MLKEM-1024} & 1716 & 1660 & 0.517 & 2.374 \\
                          &  &  & (0.035) & (0.336) \\
 \hline
-\multirow{2}{*}{HQC-192} & 18106 & 9038 & 0.529 & 364.038 \\
+\multirow{2}{*}{Pure-HQC-192} & 18106 & 9038 & 0.529 & 364.038 \\
                          &  &  & (0.047) & (14.302) \\
 \hline
-\multirow{2}{*}{HQC-256} & 28995 & 14481 & 0.520 & 668.182 \\
+\multirow{2}{*}{Pure-HQC-256} & 28995 & 14481 & 0.520 & 668.182 \\
                          &  &  & (0.044) & (23.451) \\
 \hline
 \multirow{2}{*}{Hybrid-HQC-192} & 4670 & 9070 & 0.549 & 201.687 \\
@@ -37,22 +49,36 @@
                          &  &  & (0.062) & (14.777) \\
 \hline
 \end{tabular}
-\caption{Values inside parentheses are standard deviation.}
+\caption{Handshake benchmark results. Values in parentheses are standard deviations. Handshake time is the mean baseline-subtracted RTT over 5000 trials.}
 \label{tab:Results}
 \end{table}
 
-\subsection{Message Sizes}
+
+\subsection{Message Size}
+HQC very large ciphertexts
 
 
 \subsection{Handshake Latency}
-ML-KEM faster than classic - aes
+\subsubsection{ML-KEM}
+ML-KEM faster than classic due to AES-NI on CPU
 
-\subsection{Comparisons}
-PQ-WireGuard
+\subsubsection{HQC}
+HQC very slow, probably due to vSwitch using software fragmentation reassembly on the single-core processor.
 
-Rosenpass
 
-Rebar
+\subsection{Memory and Storage}
 
-\subsection{The Clear Winner}
-Hybrid-MLKEM-768
+
+
+\subsection{Comparisons With Related Work}\label{sec:results-comparisons}
+
+\subsubsection{PQ-WireGuard}
+
+
+\subsubsection{Rosenpass}
+
+
+\subsubsection{Rebar}
+
+
+\subsection{Research Questions}
