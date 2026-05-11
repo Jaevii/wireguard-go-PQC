@@ -46,7 +46,7 @@ It's important to distinguish between the two main methods for establishing shar
 
 Traditional key exchange protocols such as Diffie-Hellman employ an interactive process in which both parties contribute to the generation of a shared secret. Instead of sending the secret directly, each party exchanges intermediate values derived from their private key, and both participants can independently compute the same shared key from the other's public value. This bidirectional structure is displayed in Figure \ref{fig:DH}.
 
-In contrast, asymmetric post-quantum algorithms including ML-KEM and HQC are designed as Key Encapsulation Mechanisms (KEMs). Rather than a mutual exchange, KEMs follow a sender-receiver model. As shown in Figure \ref{fig:KEM}, the sender generates a random symmetric key and encapsulates it using the recipient's public key, producing a ciphertext that is transmitted to the recipient. The recipient uses their corresponding private key to decapsulate the ciphertext and recover the shared secret. No interactive contribution from the recipient is required.
+In contrast, asymmetric post-quantum algorithms including ML-KEM and HQC are designed as Key Encapsulation Mechanisms (KEMs). Rather than a mutual exchange, KEMs follow a sender-receiver model. As shown in Figure \ref{fig:KEM}, the sender runs the encapsulation algorithm using the recipient's public encapsulation key, producing both a ciphertext and a shared secret. The ciphertext is transmitted to the recipient, who uses their corresponding private decapsulation key to run the decapsulation algorithm and recover the same shared secret. No interactive contribution from the recipient is required.
 
 \begin{figure}[H]
 \centering
