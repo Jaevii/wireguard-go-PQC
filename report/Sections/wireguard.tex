@@ -83,7 +83,7 @@ As mentioned in the beginning of this section, WireGuard is very opinionated abo
 WireGuard currently uses the following set of modern cryptographic primitives:
 \begin{itemize}
     \item \textbf{Curve25519} for Diffie-Hellman key exchange. Curve25519 is an elliptic-curve DH function designed for both high performance and resistance to implementation errors. A static Curve25519 key is 32 bytes and provides approximately 128 bits of classical security.
-    \item \textbf{ChaCha20-Poly1305} for authenticated symmetric encryption. ChaCha20 is a stream cipher and Poly1305 is a message authentication code; combined, they provide both confidentiality and integrity. This combination is particularly fast on hardware without AES acceleration, such as mobile processors.
+    \item \textbf{ChaCha20-Poly1305} for authenticated symmetric encryption. ChaCha20 is a stream cipher and Poly1305 is a message authentication code, when combined they provide both confidentiality and integrity. This combination is particularly fast on hardware without AES acceleration, such as mobile processors.
     \item \textbf{BLAKE2s} for hashing. BLAKE2s is a fast cryptographic hash function used for key derivation and as part of the handshake's transcript hashing.
     \item \textbf{HKDF} for key derivation, built on top of BLAKE2s, used to derive the final session keys from the accumulated DH outputs.
     \item \textbf{SipHash-2-4} for internal hashtable keys. This protects WireGuard's internal data structures against hash-flooding denial-of-service attacks and is not part of the cryptographic handshake itself.
@@ -130,6 +130,25 @@ Both parties then begin the handshake with an identical state, and any deviation
     Section \ref{sec:cookies}.
 \end{enumerate}
 
+The initiation message structure is as follows: 
+
+\begin{figure}[H]
+\centering
+\begin{bytefield}[bitwidth=0.5em, endianness=big, bitformatting=\tiny]{64}
+  \bitheader{0,8,16,24,32,40,48,56,63} \\
+  \bitbox{32}{\texttt{msg\_type} (4 B)} &
+  \bitbox{32}{\texttt{sender\_index} (4 B)} \\
+  \wordbox{4}{\texttt{ephemeral} — Curve25519 public key (32 B)} \\
+  \wordbox{6}{\texttt{static\_encrypted} — encrypted static Curve25519 public key + MAC (48 B)} \\
+  \wordbox{4}{\texttt{timestamp\_encrypted} — encrypted timestamp + MAC (28 B)} \\
+  \wordbox{2}{\texttt{mac1} (16 B)} \\
+  \wordbox{2}{\texttt{mac2} (16 B)} \\
+\end{bytefield}
+\caption{WireGuard handshake initiation message (148 bytes total)}
+\label{fig:wg-initiation}
+\end{figure}
+
+
 \subsubsection{Response Message}
 Upon receiving the initiation message, the responder reconstructs the same sequence of DH operations, verifying at each step that the decrypted material is consistent. If the \texttt{mac1} check fails, the message is dropped immediately. If any subsequent decryption step fails or the timestamp is not fresh, the message is discarded silently. 
 
@@ -151,6 +170,24 @@ If the initiation message is valid, the responder generates its own fresh epheme
     in \texttt{h}, authenticating the complete exchange.
     \item \texttt{mac1} and \texttt{mac2} are appended as in the initiation.
 \end{enumerate}
+
+The response message structure is as follows:
+
+\begin{figure}[H]
+\centering
+\begin{bytefield}[bitwidth=0.5em, endianness=big, bitformatting=\tiny]{64}
+  \bitheader{0,8,16,24,32,40,48,56,63} \\
+  \bitbox{16}{\texttt{msg\_type} (4 B)} &
+  \bitbox{24}{\texttt{sender\_index} (4 B)} &
+  \bitbox{24}{\texttt{receiver\_index} (4 B)} & \\
+  \wordbox{4}{\texttt{ephemeral} — Curve25519 public key (32 B)} \\
+  \wordbox{2}{\texttt{empty\_encrypted} — AEAD tag only (16 B)} \\
+  \wordbox{2}{\texttt{mac1} (16 B)} \\
+  \wordbox{2}{\texttt{mac2} (16 B)} \\
+\end{bytefield}
+\caption{WireGuard handshake response message (92 bytes total)}
+\label{fig:wg-response}
+\end{figure}
 
 \subsubsection{Session Key Derivation}
 Once the initiator receives and validates the response message, both parties have performed the same set of DH operations and their chaining keys $ck$ are identical. Two symmetric session keys are derived from $ck$ using a final HKDF step: one key for packets flowing from initiator to responder, and one for the reverse direction. All subsequent data packets are encrypted with ChaCha20-Poly1305 using these keys. The handshake state is then discarded entirely to guarantee forward secrecy.
@@ -200,4 +237,6 @@ In the context of this thesis, \texttt{wireguard-go} is the implementation of ch
 \subsection{PQC Implementation Challenges} \label{wg-PQC}
 Integrating PQC into WireGuard introduces several challenges that stem from a fundamental architectural mismatch. WireGuard's handshake is built around the Diffie-Hellman key exchange, where both parties contribute a key share and independently derive the same shared secret. But since PQC schemes are typically structured as KEMs, where one party generates a shared secret and encrypts it for the other, this means that PQC algorithms cannot simply replace the DH steps in the existing handshake without overarching changes to its code. 
 
-A more immediate practical challenge is the size of PQC key material. A Curve25519 public key is \qty{32}{bytes}, while an ML-KEM-768 public key is much larger at \qty{1184}{bytes} and its ciphertext at \qty{1088}{bytes}. This matters because WireGuard is specifically designed to keep its handshake messages small enough to fit within a single unfragmented UDP packet. For IPv4, the minimum guaranteed MTU along any path is \qty{1500}{bytes}, but subtracting the IP and UDP headers leaves only \qty{1420}{bytes} for the payload. Fitting a full PQC handshake within this budget is very difficult, and exceeding it forces fragmentation which causes the protocol to no longer maintain its 1-RTT handshake core design property.
+A more immediate practical challenge is the size of PQC key material. A Curve25519 public key is \qty{32}{bytes}, while an ML-KEM-768 public key is much larger at \qty{1184}{bytes} and its ciphertext at \qty{1088}{bytes}. This matters because WireGuard is specifically designed to keep its handshake messages small enough to fit within a single unfragmented UDP packet. For IPv4, the minimum guaranteed MTU along any path is \qty{1500}{bytes}, and subtracting the IPv4 (\qty{20}{bytes}) and UDP (\qty{8}{bytes}) headers leaves only \qty{1472}{bytes} for the payload.
+
+Fitting a full PQC handshake within this budget is very difficult, and exceeding it forces fragmentation which causes the protocol to no longer maintain its 1-RTT handshake core design property.

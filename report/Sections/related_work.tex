@@ -25,7 +25,7 @@ On the efficiency side, the RKEM-based redesign eliminates the need for Classic 
 The paper represents the current state of the art for formally analyzed post-quantum WireGuard designs, and it uses ML-KEM as its primary building block, the same algorithm that is evaluated in this thesis. While this thesis does not implement the RKEM construction, the performance characteristics of ML-KEM measured here are directly relevant to understanding the practical cost of the approach proposed by Hashimoto et al.
 
 \newpage
-\section{Concurrent Work}
+\section{State of the art}
 The NIST Post-Quantum Cryptography Standardization Process \cite{nistpqc} continues in parallel with this thesis. ML-KEM was finalized as FIPS 203 in August 2024 and is the algorithm evaluated in this work. HQC was selected as a backup standard in March 2025 and is currently undergoing draft standardization, with a final standard expected in 2027 \cite{Moody2025NISTIR8545}. The ongoing standardization of HQC is relevant as the performance results for HQC reported in this thesis reflect the current reference implementation, not a final and optimized standard.
 
 Post-quantum key exchange is actively being deployed in the Transport Layer Security (TLS) protocol, which represents the most widely monitored early indicator of PQC adoption at scale. The IETF has published a draft standard for hybrid key exchange in TLS 1.3 using \texttt{X25519MLKEM768}, which combines X25519 and ML-KEM-768 into a single key share \cite{ietf-tls-ecdhe-mlkem-04}. 

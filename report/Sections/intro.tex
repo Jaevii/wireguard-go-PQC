@@ -34,7 +34,7 @@ This thesis addresses that gap by designing, implementing, and evaluating a hybr
 
     \item How do hybrid cryptographic approaches (combining classical Diffie-Hellman with PQC) compare to purely post-quantum approaches in terms of security, performance, and deployability?
 
-    \item How does a hybrid WireGuard implementation using ML-KEM and HQC compare to existing post-quantum solutions, such as Rosenpass, in terms of performance and practical deployment?
+    \item How does a hybrid WireGuard implementation using ML-KEM and HQC compare to existing post-quantum solutions in terms of performance and practical deployment?
 
     \item What trade-offs exist between security level and ciphertext size when selecting PQC algorithms for use in WireGuard?
 \end{enumerate}
@@ -51,15 +51,6 @@ The benchmark environment uses a virtual network on a single physical host, whic
 The security analysis of the hybrid and pure-KEM handshake constructions is informal. No formal verification or symbolic proof is provided, and the security arguments in this thesis are based on design reasoning rather than machine-checked proofs. This is consistent with the scope of the related work that this thesis builds on, but it means the security claims are weaker than those of formally analyzed designs.
 
 
-\subsection{The scarlet thread}
-The central theme of this thesis is the integration of post-quantum cryptographic algorithms into the secure communication VPN protocol WireGuard. 
-
-The work is motivated by the emerging threat posed by quantum computing, which challenges the security of all classic asymmetric cryptographic schemes in use today. In response, PQC introduces new algorithms that are believed to be resistant to quantum attacks, but these algorithms also introduce practical challenges related to performance, resource usage, and protocol compatibility.
-
-The thesis follows a progression from theoretical foundations to practical application. First, the principles of classical and post-quantum asymmetric cryptography are introduced, along with the quantum threat that motivates the transition. Next, the NIST-selected post-quantum algorithms, ML-KEM and HQC, are described and analyzed in terms of their properties. Along with this, forward secrecy, overarching PQC challenges, as well as hybridization strategies, are all discussed.
-
-The main focus of the thesis is the evaluation of how these algorithms can be integrated into the WireGuard protocol, particularly through hybrid cryptographic approaches. This includes analyzing the impact on performance, storage requirements, and protocol design constraints. Finally, the proposed approaches are compared to existing solutions, such as Rosenpass, in order to assess their practical viability.
-
 \subsection{Thesis Structure} 
 The remainder of this thesis is structured as follows.
 
@@ -75,6 +66,6 @@ Section 6 describes the research method. It covers the literature study, protoco
 
 Section 7 presents the results of the benchmark: handshake latency, message sizes, and storage requirements for all nine evaluated variants, compares them against the related work, and describes how they answer the research questions. 
 
-Section 8 discusses 
+Section 8 outlines the contributions of the thesis to literature, practice, and management, examines the MTU constraint in detail, addresses the requirements of full post-quantum authentication, and compares the implementation with PQ-WireGuard, Rosenpass, and Rebar. It also considers the ethical and sustainability implications of the transition to post-quantum cryptography, and aims to direct future research.
 
-Section 9 concludes 
+Section 9 concludes the thesis by summarising the main findings and reflecting on the broader implications for post-quantum VPN deployment.

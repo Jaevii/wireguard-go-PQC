@@ -124,9 +124,9 @@ func (c Config) String() string { return c.name }
 //
 // Wire layout:
 //
-//	Classical:  [Type:4][Sender:4][X25519_eph:32][Static+tag:48][Timestamp+tag:24][MAC1:16][MAC2:16] = 148
-//	Hybrid:     [Type:4][Sender:4][X25519_eph:32][KEM_pk:N][Static+tag:48][Timestamp+tag:24][MAC1:16][MAC2:16]
-//	Pure KEM:   [Type:4][Sender:4][KEM_pk:N][KEM_ct:M][KEM_Static+tag:N+16][Timestamp+tag:24][MAC1:16][MAC2:16]
+//	Classical:  [Type:4][Sender:4][X25519_eph:32][Static+tag:48][Timestamp+tag:28][MAC1:16][MAC2:16] = 148
+//	Hybrid:     [Type:4][Sender:4][X25519_eph:32][KEM_pk:N][Static+tag:48][Timestamp+tag:28][MAC1:16][MAC2:16]
+//	Pure KEM:   [Type:4][Sender:4][KEM_pk:N][KEM_ct:M][KEM_Static+tag:N+16][Timestamp+tag:28][MAC1:16][MAC2:16]
 func (c Config) MessageInitiationSize() int {
 	const (
 		x25519Size      = 32

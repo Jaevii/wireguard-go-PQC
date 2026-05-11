@@ -15,6 +15,18 @@
 \usepackage{eurosym}
 \usepackage{multirow}
 \usepackage{listings}
+\usepackage{bytefield}
+\usepackage{xcolor}
+
+% Color definitions
+\definecolor{fieldgray}{gray}{0.85}
+\definecolor{fieldblue}{RGB}{180,210,240}
+\definecolor{fieldgreen}{RGB}{180,230,200}
+\definecolor{fieldyellow}{RGB}{255,240,180}
+
+\newcommand{\colorbitbox}[3]{%
+  \colorbox{#1}{\bitbox{#2}{#3}}%
+}
 
 \DeclareUnicodeCharacter{20AC}{\euro}
 
