@@ -12,7 +12,7 @@ The fundamental problem is not computational performance but message size. HQC c
 
 \textbf{The MTU constraint remains the defining challenge.}
 
-Only Hybrid-MLKEM-768 fully satisfies WireGuard's single-packet design assumption, while the other KEM variants required fragmentation. Prior work by Hashimoto et al. demonstrates that the RKEM construction can fit two ML-KEM operations within the IPv6 budget by exploiting algebraic structure internal to the algorithm. Until such optimizations are standardized, the MTU constraint remains a hard ceiling that algorithm selection alone cannot overcome.
+Only Hybrid-MLKEM-768 satisfies WireGuard's single-packet design assumption, while the other KEM variants required fragmentation. Prior work by Hashimoto et al. demonstrates that the RKEM construction can fit two ML-KEM operations within the IPv6 budget by exploiting the algebraic structure internal to the algorithm. But until such optimizations are standardized, the MTU constraint remains a hard ceiling that algorithm selection alone cannot overcome.
 
 \textbf{The HNDL threat is addressable today.}
 

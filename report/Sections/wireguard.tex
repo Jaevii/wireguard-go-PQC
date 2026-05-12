@@ -139,8 +139,8 @@ The initiation message structure is as follows:
   \bitbox{32}{\texttt{msg\_type} (4 B)} &
   \bitbox{32}{\texttt{sender\_index} (4 B)} \\
   \wordbox{4}{\texttt{ephemeral} — Curve25519 public key (32 B)} \\
-  \wordbox{6}{\texttt{static\_encrypted} — encrypted static Curve25519 public key + MAC (48 B)} \\
-  \wordbox{4}{\texttt{timestamp\_encrypted} — encrypted timestamp + MAC (28 B)} \\
+  \wordbox{6}{\texttt{static\_encrypted} — encrypted static Curve25519 public key + AEAD tag (48 B)} \\
+  \wordbox{4}{\texttt{timestamp\_encrypted} — encrypted timestamp + AEAD tag (28 B)} \\
   \wordbox{2}{\texttt{mac1} (16 B)} \\
   \wordbox{2}{\texttt{mac2} (16 B)} \\
 \end{bytefield}
@@ -237,6 +237,6 @@ In the context of this thesis, \texttt{wireguard-go} is the implementation of ch
 \subsection{PQC Implementation Challenges} \label{wg-PQC}
 Integrating PQC into WireGuard introduces several challenges that stem from a fundamental architectural mismatch. WireGuard's handshake is built around the Diffie-Hellman key exchange, where both parties contribute a key share and independently derive the same shared secret. But since PQC schemes are typically structured as KEMs, where one party generates a shared secret and encrypts it for the other, this means that PQC algorithms cannot simply replace the DH steps in the existing handshake without overarching changes to its code. 
 
-A more immediate practical challenge is the size of PQC key material. A Curve25519 public key is \qty{32}{bytes}, while an ML-KEM-768 public key is much larger at \qty{1184}{bytes} and its ciphertext at \qty{1088}{bytes}. This matters because WireGuard is specifically designed to keep its handshake messages small enough to fit within a single unfragmented UDP packet. For IPv4, the minimum guaranteed MTU along any path is \qty{1500}{bytes}, and subtracting the IPv4 (\qty{20}{bytes}) and UDP (\qty{8}{bytes}) headers leaves only \qty{1472}{bytes} for the payload.
+A more immediate practical challenge is the size of PQC key material. A Curve25519 public key is \qty{32}{bytes}, while an ML-KEM-768 public key is much larger at \qty{1184}{bytes} and its ciphertext at \qty{1088}{bytes}. This matters because WireGuard is specifically designed to keep its handshake messages small enough to fit within a single unfragmented UDP packet. For IPv4, the Maximum Transmission Unit (MTU) along any path is \qty{1500}{bytes}, and subtracting the IPv4 (\qty{20}{bytes}) and UDP (\qty{8}{bytes}) headers leaves only \qty{1472}{bytes} for the payload.
 
 Fitting a full PQC handshake within this budget is very difficult, and exceeding it forces fragmentation which causes the protocol to no longer maintain its 1-RTT handshake core design property.
