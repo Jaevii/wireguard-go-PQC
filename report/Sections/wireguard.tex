@@ -85,7 +85,7 @@ WireGuard currently uses the following set of modern cryptographic primitives:
     \item \textbf{Curve25519} for Diffie-Hellman key exchange. Curve25519 is an elliptic-curve DH function designed for both high performance and resistance to implementation errors. A static Curve25519 key is 32 bytes and provides approximately 128 bits of classical security.
     \item \textbf{ChaCha20-Poly1305} for authenticated symmetric encryption. ChaCha20 is a stream cipher and Poly1305 is a message authentication code, when combined they provide both confidentiality and integrity. This combination is particularly fast on hardware without AES acceleration, such as mobile processors.
     \item \textbf{BLAKE2s} for hashing. BLAKE2s is a fast cryptographic hash function used for key derivation and as part of the handshake's transcript hashing.
-    \item \textbf{HKDF} for key derivation, built on top of BLAKE2s, used to derive the final session keys from the accumulated DH outputs.
+    \item \textbf{HKDF} (HMAC-based Key Derivation Function) for key derivation, built on top of BLAKE2s, used to derive the final session keys from the accumulated DH outputs.
     \item \textbf{SipHash-2-4} for internal hashtable keys. This protects WireGuard's internal data structures against hash-flooding denial-of-service attacks and is not part of the cryptographic handshake itself.
 \end{itemize}
 
@@ -109,25 +109,11 @@ Both parties then begin the handshake with an identical state, and any deviation
 \begin{enumerate}
     \item The ephemeral public key is appended to the message and mixed into 
     \texttt{h}.
-    \item A DH is computed between the initiator's ephemeral private key and 
-    the responder's static public key. The result is mixed into \texttt{ck} 
-    via HKDF, and \texttt{k} is derived from the updated \texttt{ck}. This step binds the message to 
-    the responder's identity: only a party holding the corresponding private 
-    key can reproduce this value and decrypt what follows.
-    \item The initiator's static public key is encrypted under the current 
-    \texttt{k} with \texttt{h} as associated data and appended to the message. 
-    \texttt{h} is updated to include the ciphertext. This provides identity 
-    hiding: a passive observer cannot determine who the initiator is.
-    \item A DH is computed between the initiator's static private key and the 
-    responder's static public key. The result is again mixed into \texttt{ck}, 
-    providing static-key-based mutual authentication.
-    \item A timestamp is encrypted under the current \texttt{k} and appended. 
-    The responder checks that this timestamp is greater than any previously 
-    accepted timestamp from this initiator, which prevents replay of old 
-    initiation messages.
-    \item Two MAC fields, \texttt{mac1} and \texttt{mac2}, are appended for 
-    denial-of-service resistance. These are described in 
-    Section \ref{sec:cookies}.
+    \item A DH operation is performed between the initiator's ephemeral private key and the responder's static public key. The result is mixed into \texttt{ck} via HKDF, and \texttt{k} is derived from the updated \texttt{ck}. This step binds the message to the responder's identity: only a party holding the corresponding private key can reproduce this value and decrypt what follows.
+    \item The initiator's static public key is encrypted under the current \texttt{k} with \texttt{h} as associated data and appended to the message. \texttt{h} is updated to include the ciphertext. This provides identity hiding: a passive observer cannot determine who the initiator is.
+    \item A DH operation is performed between the initiator's static private key and the responder's static public key. The result is again mixed into \texttt{ck}, providing static-key-based mutual authentication.
+    \item A timestamp is encrypted under the current \texttt{k} and appended. The responder checks that this timestamp is greater than any previously accepted timestamp from this initiator, which prevents replay of old initiation messages.
+    \item Two MAC fields, \texttt{mac1} and \texttt{mac2}, are appended for denial-of-service resistance. These are described in Section \ref{sec:cookies}.
 \end{enumerate}
 
 The initiation message structure is as follows: 
@@ -154,20 +140,11 @@ Upon receiving the initiation message, the responder reconstructs the same seque
 
 If the initiation message is valid, the responder generates its own fresh ephemeral key pair and constructs the response:
 \begin{enumerate}
-    \item The responder's ephemeral public key is appended to the message and 
-    mixed into \texttt{h}.
-    \item A DH is computed between the two ephemeral keys and mixed into 
-    \texttt{ck}. Together with the initiator's ephemeral key from the first 
-    message, this establishes the ephemeral-ephemeral shared secret that 
-    provides forward secrecy.
-    \item A DH is computed between the responder's ephemeral key and the 
-    initiator's static key and mixed into \texttt{ck}. This authenticates the 
-    initiator's static identity to the responder.
-    \item The pre-shared key is mixed into \texttt{ck} at this point, 
-    contributing any externally injected secret to the final key material.
-    \item An empty encrypted payload is appended. Although it carries no 
-    plaintext, its AEAD tag covers the entire handshake transcript accumulated 
-    in \texttt{h}, authenticating the complete exchange.
+    \item The responder's ephemeral public key is appended to the message and mixed into \texttt{h}.
+    \item A DH operation is performed between the two ephemeral keys and mixed into \texttt{ck}. Together with the initiator's ephemeral key from the first message, this establishes the ephemeral-ephemeral shared secret that provides forward secrecy.
+    \item A DH operation is performed between the responder's ephemeral key and the initiator's static key and mixed into \texttt{ck}. This authenticates the initiator's static identity to the responder.
+    \item The pre-shared key is mixed into \texttt{ck} at this point, contributing any externally injected secret to the final key material.
+    \item An empty encrypted payload is appended. Although it carries no plaintext, its AEAD tag covers the entire handshake transcript accumulated in \texttt{h}, authenticating the complete exchange.
     \item \texttt{mac1} and \texttt{mac2} are appended as in the initiation.
 \end{enumerate}
 
@@ -190,7 +167,7 @@ The response message structure is as follows:
 \end{figure}
 
 \subsubsection{Session Key Derivation}
-Once the initiator receives and validates the response message, both parties have performed the same set of DH operations and their chaining keys $ck$ are identical. Two symmetric session keys are derived from $ck$ using a final HKDF step: one key for packets flowing from initiator to responder, and one for the reverse direction. All subsequent data packets are encrypted with ChaCha20-Poly1305 using these keys. The handshake state is then discarded entirely to guarantee forward secrecy.
+Once the initiator receives and validates the response message, both parties have performed the same set of DH operations and their chaining keys $ck$ are identical. Two symmetric session keys are derived from $ck$ using a final HKDF step: one key for packets flowing from initiator to responder, and one for the reverse direction. All subsequent data packets are encrypted with ChaCha20-Poly1305 using these keys. The handshake state is then discarded entirely to guarantee forward secrecy (cf. Section \ref{sec:forward_secrecy}).
 
 To maintain forward secrecy for long-lived connections, WireGuard rekeys automatically every \qty{3}{minutes} of active use, or after $2^{64}$ packets have been sent during a session, whichever comes first. Each rekey involves a fresh handshake with new ephemeral keys, producing session keys that are independent of all previous sessions.
 
@@ -203,7 +180,7 @@ The \texttt{mac1} is always present and is computed as a keyed hash of the entir
 
 Under normal conditions \texttt{mac2} is set to zero and ignored, making it a zero-cost mechanism in the absence of an active attack.
 
-\subsubsection{Security Proofs} 
+\subsubsection{Formal Security Analysis} 
 The security of WireGuard's handshake has been formally analyzed in both the symbolic and computational models. Donenfeld and Milner provided a computer-verified proof in the symbolic model using the Tamarin prover \cite{donenfeld2017formal}, covering properties such as forward secrecy, identity hiding, and resistance to replay attacks. Symbolic proofs are useful for identifying logical flaws and can often be automated, but they model cryptographic primitives as idealized black boxes. As a result, they generally provide weaker guarantees than proofs in the computational model.
 
 Dowling and Paterson later gave a computational proof \cite{dowling2018wireguard}, which provides stronger guarantees by making fewer idealizing assumptions about the underlying primitives. In doing so, they identified a subtle issue with the 1-RTT handshake. WireGuard uses the initiator's first transport message as implicit key confirmation, but because this packet is encrypted using the session keys themselves, formally proving both secrecy and confirmation becomes difficult. They proposed a solution that adds a small explicit confirmation message, encrypted under a separate key derived solely for that purpose. This change does not add an extra round trip either since the responder was already required to wait for a message from the initiator before sending any data of its own.

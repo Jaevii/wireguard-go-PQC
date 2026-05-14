@@ -95,7 +95,7 @@ In the context of cryptography, Grover's algorithm impacts symmetric-key primiti
 It is also important to note that practical implementations of Grover's algorithm face significant overhead due to error correction and circuit depth requirements, which further limits its near-term applicability. But it remains a critical consideration when evaluating the long-term security of symmetric cryptographic systems.
 
 \subsubsection{``Harvest now, decrypt later.''} \label{hndl}
-A common misconception about the quantum threat is that it only becomes relevant when sufficiently large quantum computers become available, but this view overlooks an already active risk model known as the ``harvest now, decrypt later'' (HNDL) \cite{hndl}.
+A common misconception about the quantum threat is that it only becomes relevant when sufficiently large quantum computers become available, but this view overlooks an already active risk model known as ``harvest now, decrypt later'' (HNDL) \cite{hndl}.
 
 In this model, an adversary intercepts and stores encrypted communication today with the intention of decrypting them in the future once sufficiently powerful quantum computers exist. This strategy is particularly concerning for data with long-term confidentiality requirements, such as government communications, intellectual property, personal data, and critical infrastructure information. 
 
@@ -138,7 +138,7 @@ In a hybrid scheme, a classical Diffie-Hellman exchange and a PQC KEM are execut
 
 In the DH component, both parties contribute an ephemeral public key and independently compute the same shared secret. In the KEM component, the initiator encapsulates a secret to the responder's ephemeral public key, producing a ciphertext and a shared secret. The responder then decapsulates the ciphertext using their private key to derive the same shared secret. The two resulting secrets are then passed into a Key Derivation Function (KDF) to derive the final session key. 
 
-The key security property of this approach is that the resulting session is only compromised if \textit{both} components are broken. If the PQC algorithm contains an unknown vulnerability, the classical component continues to provide security against current adversaries. Conversely, if a sufficiently powerful quantum computer becomes available in the future, the PQC component ensures that the key remains protected.
+The key security property of this approach is that forward secrecy is only compromised if \textit{both} components are broken. If the PQC algorithm contains an unknown vulnerability, the classical component continues to provide forward secrecy against current adversaries. Conversely, if a sufficiently powerful quantum computer becomes available in the future, the PQC component ensures that past session keys remain protected against retroactive decryption.
 
 Hybrid key exchange is currently the industry-standard approach for deploying PQC in practice. It is already used in TLS 1.3, where hybrid mechanisms such as \texttt{X25519MLKEM768} (combining X25519 with ML-KEM-768) have been standardized by the IETF \cite{ietf-tls-ecdhe-mlkem-04}, and is being actively deployed by providers such as Cloudflare \cite{Westerbaan2025PQ}.
 
