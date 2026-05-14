@@ -87,11 +87,13 @@ The main cause of this latency is not HQC's computational cost but the IP fragme
 \subsection{Message Size}
 Table \ref{tab:Results} shows a large variance in the message sizes across the nine variants. To understand where these sizes come from, it helps to look at the individual fields that make up each message.
 
-\subsubsection{Initiation Message Fields Breakdown}'
+\subsubsection{Initiation Message Fields Breakdown}
 
 A fixed overhead of \qty{84}{bytes} is identical across all nine variants, as the fields it covers are independent of the choice of algorithm. As illustrated in Figure \ref{fig:wg-initiation}, these fields are the 4-byte message type, the 4-byte sender index, the 28-byte encrypted timestamp with its authentication tag, and the two 16-byte MAC fields used for denial-of-service resistance.
 
-\begin{table}[h]
+The three remaining fields differ considerably between the modes. In the classical handshake the initiator sends only its 32-byte Curve25519 ephemeral public key and a 32-byte encrypted version of its static Curve25519 key, for a total of 148 bytes. For the hybrid variants, the ephemeral key field is extended by appending the KEM ephemeral public key directly after the classic Curve25519 key, and the static field remains a 32-byte Curve25519 key because authentication still relies on the classical identity. 
+
+\begin{table}[H]
 \centering
 \begin{tabular}{|l|R{0.18\linewidth}R{0.14\linewidth}R{0.12\linewidth}R{0.1\linewidth}|}
 \hline
@@ -111,8 +113,6 @@ Hybrid-HQC-256    & 7277  & 0     & 32    & 84 \\
 \caption{Breakdown of initiation message fields into ephemeral fields and fixed protocol overhead.}
 \label{tab:InitiationMessageBreakdown}
 \end{table}
-
-The three remaining fields differ considerably between the modes. In the classical handshake the initiator sends only its 32-byte Curve25519 ephemeral public key and a 32-byte encrypted version of its static Curve25519 key, for a total of 148 bytes. For the hybrid variants, the ephemeral key field is extended by appending the KEM ephemeral public key directly after the classic Curve25519 key, and the static field remains a 32-byte Curve25519 key because authentication still relies on the classical identity. 
 
 The significantly larger field sizes of the pure-KEM variants arises from the need for three KEM components to be present in the message simultaneously. As mentioned in Section \ref{sec:method-purekem}, the initiator sends its ephemeral KEM public key so the responder can encapsulate the ephemeral shared secret, a ciphertext \texttt{ct\_es} produced by encapsulating to the responder's static KEM public key, and an encrypted copy of its own static KEM public key so the responder can identify the peer. 
 
