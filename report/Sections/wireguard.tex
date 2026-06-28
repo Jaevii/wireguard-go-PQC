@@ -1,5 +1,4 @@
-\newpage
-\section{WireGuard}
+
 WireGuard is a modern, free and open-source VPN protocol developed by Jason A. Donenfeld, and first publicly presented at the Network and Distributed System Security Symposium (NDSS) in 2017 \cite{wireguard}. It was conceived as a reaction to the complexity and bloat of existing VPN solutions such as IPsec and OpenVPN, that makes them notoriously difficult to configure correctly and whose large codebases make security auditing require significant effort.
 
 WireGuard was designed with a different philosophy. Instead of supporting many possible cryptographic choices and configuration options, WireGuard uses a small and fixed set of modern cryptographic primitives. The protocol focuses on three main goals:
@@ -25,7 +24,7 @@ WireGuard operates exclusively over UDP and uses a lightweight handshake mechani
 Due to its strong performance and simplicity, WireGuard has become widely adopted. It has been integrated into the Linux kernel, is used as the underlying protocol in commercial VPN services such as NordVPN (NordLynx) and Mullvad, and is also widely deployed across mobile devices and cloud infrastructure.
 
 
-\subsection{The Noise Protocol Framework}
+\section{The Noise Protocol Framework}
 WireGuard's handshake is built on the Noise Protocol Framework \cite{noise}, a public-domain framework for constructing secure communication protocols based on Diffie-Hellman key agreement. Rather than defining a single fixed protocol, Noise provides a vocabulary of tokens that are arranged into message patterns. These message patterns are then arranged into handshake patterns that protocol designers can instantiate with concrete cryptographic functions.
 
 A Noise handshake maintains several internal variables during the key establishment process. These variables store key values and current cryptographic state.
@@ -47,7 +46,7 @@ The Noise framework processes handshake messages token by token. Each token repr
     \item \texttt{"psk":} A pre-shared symmetric key is mixed into \texttt{ck}. This is an optional extension discussed further in Section \ref{sec:psk}
 \end{itemize}
 
-\subsubsection{The Noise\_IKpsk2 Handshake pattern}\label{sec:noise-ik}
+\subsection{The Noise\_IKpsk2 Handshake pattern}\label{sec:noise-ik}
 WireGuard specifically uses the Noise\_IKpsk2 handshake pattern. The name encodes the structure of the exchange: \texttt{I} indicates that the initiator transmits its static public key during the handshake, \texttt{K} indicates that the responder's static public key is already known to the initiator before the handshake begins, and \texttt{psk2} indicates that a pre-shared key is mixed into the chaining key at the end of the second message. Because the responder's static key is known in advance, the initiator can perform a DH operation with it immediately, which allows the initiator's static key to be encrypted before transmission and provides identity hiding against passive observers.
 
 \begin{figure}[h]
@@ -72,12 +71,12 @@ Reading the pattern line by line:
 
 The resulting handshake achieves mutual authentication, forward secrecy through the ephemeral keys, and identity hiding for the initiator, all within a single round trip.
 
-\subsubsection{Pre-Shared Key}\label{sec:psk}
+\subsection{Pre-Shared Key}\label{sec:psk}
 Noise supports an optional Pre-Shared symmetric Key (PSK) that when included, is mixed into the chaining key at a designated point in the handshake.
 
-WireGuard exposes this parameter directly in its configuration. By default it is unused, but it can be set to inject an externally derived secret into the handshake. Out-of-band PQC solutions such as Rosenpass, discussed further in Section \ref{relatedwork}, perform a separate post-quantum key exchange and inject the resulting secret into WireGuard's PSK field, protecting session confidentiality even if the classical DH is later broken by a quantum computer.
+WireGuard exposes this parameter directly in its configuration. By default it is unused, but it can be set to inject an externally derived secret into the handshake. Out-of-band PQC solutions such as Rosenpass, discussed further in Chapter \ref{ch4}, perform a separate post-quantum key exchange and inject the resulting secret into WireGuard's PSK field, protecting session confidentiality even if the classical DH is later broken by a quantum computer.
 
-\subsection{Cryptographic Primitives}
+\section{Cryptographic Primitives}
 As mentioned in the beginning of this section, WireGuard is very opinionated about which cryptographic primitives it utilizes. This is a deliberate design choice as the ability to offer multiple algorithms at runtime, has historically been a source of downgrade attacks and misconfiguration vulnerabilities in protocols such as TLS and IPsec \cite{Downgrade}. By removing the choice entirely, WireGuard eliminates this attack surface.
 
 WireGuard currently uses the following set of modern cryptographic primitives:
@@ -91,10 +90,10 @@ WireGuard currently uses the following set of modern cryptographic primitives:
 
 From a post-quantum perspective, ChaCha20-Poly1305, BLAKE2s, and HKDF are considered safe with their current parameters as symmetric primitives and hash functions are only weakened quadratically by Grover's algorithm. The vulnerable component is Curve25519, whose security depends on the elliptic-curve discrete logarithm problem, which Shor's algorithm solves efficiently. Consequently, the key exchange mechanism used by WireGuard is not considered secure against large-scale quantum computers and replacing or augmenting it is the central challenge of post-quantum WireGuard.
 
-\subsection{Handshake}\label{sec:wg-handshake}
+\section{Handshake}\label{sec:wg-handshake}
 WireGuard's handshake is a concrete instantiation of the Noise\_IK pattern described in Section \ref{sec:noise-ik}, augmented with WireGuard-specific fields for session management and denial-of-service resistance. The handshake consists of two messages: an initiation sent by the peer that wants to establish a session, and a response returned by the other peer. Once both messages have been exchanged, both sides independently derive a pair of symmetric session keys and data transfer can begin immediately, with no further round trips required. This is the 1-RTT property that makes WireGuard particularly efficient for short-lived or frequently rekeyed connections.
 
-\subsubsection{Initiation Message}
+\subsection{Initiation Message}
 The initiator begins by generating a fresh ephemeral Curve25519 key pair and initializing the handshake state. The chaining key and handshake hash are both set to a hash of the Noise protocol identifier string, which encodes the chosen handshake pattern and cryptographic primitives: 
 
 \begin{align*} h_0 &= \texttt{Hash("Noise\_IKpsk2\_25519\_ChaChaPoly\_BLAKE2s")} \\ ck_0 &= h_0 \\ h_1 &= \texttt{Hash}(h_0 \| \texttt{"WireGuard v1 zx2c4 Jason@zx2c4.com"}) \end{align*} 
@@ -117,16 +116,15 @@ Both parties then begin the handshake with an identical state, and any deviation
 \end{enumerate}
 
 The initiation message structure is as follows: 
-
 \begin{figure}[H]
 \centering
 \begin{bytefield}[bitwidth=0.5em, endianness=big, bitformatting=\tiny]{64}
   \bitheader{0,8,16,24,32,40,48,56,63} \\
   \bitbox{32}{\texttt{msg\_type} (4 B)} &
   \bitbox{32}{\texttt{sender\_index} (4 B)} \\
-  \wordbox{4}{\texttt{ephemeral} — Curve25519 public key (32 B)} \\
-  \wordbox{6}{\texttt{static\_encrypted} — encrypted static Curve25519 public key + AEAD tag (48 B)} \\
-  \wordbox{4}{\texttt{timestamp\_encrypted} — encrypted timestamp + AEAD tag (28 B)} \\
+  \wordbox{3}{\texttt{ephemeral} — Curve25519 public key (32 B)} \\
+  \wordbox{3}{\texttt{static\_encrypted} — encrypted static Curve25519 public key + AEAD tag (48 B)} \\
+  \wordbox{3}{\texttt{timestamp\_encrypted} — encrypted timestamp + AEAD tag (28 B)} \\
   \wordbox{2}{\texttt{mac1} (16 B)} \\
   \wordbox{2}{\texttt{mac2} (16 B)} \\
 \end{bytefield}
@@ -135,10 +133,8 @@ The initiation message structure is as follows:
 \end{figure}
 
 
-\subsubsection{Response Message}
-Upon receiving the initiation message, the responder reconstructs the same sequence of DH operations, verifying at each step that the decrypted material is consistent. If the \texttt{mac1} check fails, the message is dropped immediately. If any subsequent decryption step fails or the timestamp is not fresh, the message is discarded silently. 
-
-If the initiation message is valid, the responder generates its own fresh ephemeral key pair and constructs the response:
+\subsection{Response Message}
+Upon receiving the initiation message, the responder reconstructs the same sequence of DH operations, verifying at each step that the decrypted material is consistent. If the \texttt{mac1} check fails, the message is dropped immediately. If any subsequent decryption step fails or the timestamp is not fresh, the message is discarded silently. If the initiation message is valid, the responder generates its own fresh ephemeral key pair and constructs the response:
 \begin{enumerate}
     \item The responder's ephemeral public key is appended to the message and mixed into \texttt{h}.
     \item A DH operation is performed between the two ephemeral keys and mixed into \texttt{ck}. Together with the initiator's ephemeral key from the first message, this establishes the ephemeral-ephemeral shared secret that provides forward secrecy.
@@ -149,7 +145,6 @@ If the initiation message is valid, the responder generates its own fresh epheme
 \end{enumerate}
 
 The response message structure is as follows:
-
 \begin{figure}[H]
 \centering
 \begin{bytefield}[bitwidth=0.5em, endianness=big, bitformatting=\tiny]{64}
@@ -157,7 +152,7 @@ The response message structure is as follows:
   \bitbox{16}{\texttt{msg\_type} (4 B)} &
   \bitbox{24}{\texttt{sender\_index} (4 B)} &
   \bitbox{24}{\texttt{receiver\_index} (4 B)} & \\
-  \wordbox{4}{\texttt{ephemeral} — Curve25519 public key (32 B)} \\
+  \wordbox{3}{\texttt{ephemeral} — Curve25519 public key (32 B)} \\
   \wordbox{2}{\texttt{empty\_encrypted} — AEAD tag only (16 B)} \\
   \wordbox{2}{\texttt{mac1} (16 B)} \\
   \wordbox{2}{\texttt{mac2} (16 B)} \\
@@ -166,12 +161,12 @@ The response message structure is as follows:
 \label{fig:wg-response}
 \end{figure}
 
-\subsubsection{Session Key Derivation}
+\subsection{Session Key Derivation}
 Once the initiator receives and validates the response message, both parties have performed the same set of DH operations and their chaining keys $ck$ are identical. Two symmetric session keys are derived from $ck$ using a final HKDF step: one key for packets flowing from initiator to responder, and one for the reverse direction. All subsequent data packets are encrypted with ChaCha20-Poly1305 using these keys. The handshake state is then discarded entirely to guarantee forward secrecy (cf. Section \ref{sec:forward_secrecy}).
 
 To maintain forward secrecy for long-lived connections, WireGuard rekeys automatically every \qty{3}{minutes} of active use, or after $2^{64}$ packets have been sent during a session, whichever comes first. Each rekey involves a fresh handshake with new ephemeral keys, producing session keys that are independent of all previous sessions.
 
-\subsubsection{Cookie Mechanism}\label{sec:cookies}
+\subsection{Cookie Mechanism}\label{sec:cookies}
 Every WireGuard handshake message carries two MAC fields, \texttt{mac1} and \texttt{mac2}, which together form WireGuard's defense against denial-of-service (DoS) attacks.
 
 The \texttt{mac1} is always present and is computed as a keyed hash of the entire message content using a key derived from the recipient's static public key. Because computing a valid \texttt{mac1} requires knowledge of the recipient's public key, it serves as a lightweight proof that the sender is aware of the intended recipient. Any packet with an invalid \texttt{mac1} is dropped immediately, before any DH computation takes place, making it cheap to filter out random or malformed packets under load.
@@ -180,18 +175,18 @@ The \texttt{mac1} is always present and is computed as a keyed hash of the entir
 
 Under normal conditions \texttt{mac2} is set to zero and ignored, making it a zero-cost mechanism in the absence of an active attack.
 
-\subsubsection{Formal Security Analysis} 
+\subsection{Formal Security Analysis} 
 The security of WireGuard's handshake has been formally analyzed in both the symbolic and computational models. Donenfeld and Milner provided a computer-verified proof in the symbolic model using the Tamarin prover \cite{donenfeld2017formal}, covering properties such as forward secrecy, identity hiding, and resistance to replay attacks. Symbolic proofs are useful for identifying logical flaws and can often be automated, but they model cryptographic primitives as idealized black boxes. As a result, they generally provide weaker guarantees than proofs in the computational model.
 
 Dowling and Paterson later gave a computational proof \cite{dowling2018wireguard}, which provides stronger guarantees by making fewer idealizing assumptions about the underlying primitives. In doing so, they identified a subtle issue with the 1-RTT handshake. WireGuard uses the initiator's first transport message as implicit key confirmation, but because this packet is encrypted using the session keys themselves, formally proving both secrecy and confirmation becomes difficult. They proposed a solution that adds a small explicit confirmation message, encrypted under a separate key derived solely for that purpose. This change does not add an extra round trip either since the responder was already required to wait for a message from the initiator before sending any data of its own.
 
 
-\subsection{Stealth}\label{sec:wg-stealth}
+\section{Stealth}\label{sec:wg-stealth}
 A distinctive property of WireGuard is that it does not respond to any packet that fails cryptographic validation. There is no error message, no rejection notice, and no handshake failure notification. For a network scanner or an adversary probing the port, a WireGuard endpoint is indistinguishable from a host with no service running.
 
 This property is a direct consequence of WireGuard's decision to operate exclusively over UDP with a fixed message format. A TCP-based VPN protocol such as OpenVPN and IPsec must at minimum complete a TCP handshake before any application-layer authentication can occur, exposing a connection-oriented attack surface. The only way to elicit any response from a WireGuard endpoint is to send a cryptographically valid initiation message, which allows it to sidestep this problem entirely.
 
-\subsection{Key Management}\label{sec:wg-keys}
+\section{Key Management}\label{sec:wg-keys}
 WireGuard's identity model is deliberately simpler than that of TLS or IPsec. There are no certificates, no certificate authorities, and no public key infrastructure. Each WireGuard peer generates a static Curve25519 key pair, and manually configures their peers by adding each other's static public keys to their respective configuration files. 
 
 Each peer's configuration also specifies a set of \textit{allowed IPs}: the IP address ranges that the peer is permitted to send and receive traffic for. This ties cryptographic identity directly to network routing. When a packet arrives, WireGuard looks up the source IP in the allowed IPs table to determine which peer's session key to use for decryption. If decryption succeeds, the packet is accepted. If it fails or no matching peer exists, the packet is dropped. The allowed IPs list essentially serves as both a routing table and an access control list.
@@ -199,7 +194,7 @@ Each peer's configuration also specifies a set of \textit{allowed IPs}: the IP a
 An important implication of this model for post-quantum integration is that static public keys are provisioned out of band and do not need to be   transmitted within the size-constrained UDP handshake messages. This means that even the large static public keys of certain PQC schemes such as Classic McEliece, which exceed \qty{250}{\kilo\byte}, could be used for static authentication without affecting handshake message sizes.
 
 
-\subsection{Go Implementation}\label{sec:wireguard-go}
+\section{Go Implementation}\label{sec:wireguard-go}
 While the main WireGuard implementation is a Linux kernel module written in C, a userspace implementation exists for platforms where kernel-level access is unavailable or undesirable. This is \texttt{wireguard-go} \cite{wireguardgo}, the official userspace implementation written in Go, which exposes the same configuration interface as the kernel module and is used on macOS, Windows, iOS, and Android.
 
 The main motivation for a userspace implementation in Go is portability and ease of integration. Go provides cross-platform support, a rich standard library, and easier interoperability with higher-level application code compared to kernel C code. This makes it straightforward to embed WireGuard as a library in a larger application, as is common in VPN clients.
@@ -211,9 +206,9 @@ A notable alternative to \texttt{wireguard-go} is BoringTun, a userspace impleme
 In the context of this thesis, \texttt{wireguard-go} is the implementation of choice because it allows PQC cryptographic libraries to be used directly with the WireGuard codebase without requiring kernel modifications. The message structs, DH calls, and key derivation steps are all clearly separated, making it possible to augment the handshake with additional KEM operations without restructuring the entire codebase. This makes \texttt{wireguard-go} significantly more accessible for experimental PQC integration than the C kernel module.
 
 
-\subsection{PQC Implementation Challenges} \label{wg-PQC}
+\section{PQC Implementation Challenges} \label{wg-PQC}
 Integrating PQC into WireGuard introduces several challenges that stem from a fundamental architectural mismatch. WireGuard's handshake is built around the Diffie-Hellman key exchange, where both parties contribute a key share and independently derive the same shared secret. But since PQC schemes are typically structured as KEMs, where one party generates a shared secret and encrypts it for the other, this means that PQC algorithms cannot simply replace the DH steps in the existing handshake without overarching changes to its code. 
 
-A more immediate practical challenge is the size of PQC key material. A Curve25519 public key is \qty{32}{bytes}, while an ML-KEM-768 public key is much larger at \qty{1184}{bytes} and its ciphertext at \qty{1088}{bytes}. This matters because WireGuard is specifically designed to keep its handshake messages small enough to fit within a single unfragmented UDP packet. For IPv4, the Maximum Transmission Unit (MTU) along any path is \qty{1500}{bytes}, and subtracting the IPv4 (\qty{20}{bytes}) and UDP (\qty{8}{bytes}) headers leaves only \qty{1472}{bytes} for the payload.
+A more immediate practical challenge is the size of PQC key material. A Curve25519 public key is \qty{32}{bytes}, while an ML-KEM-768 public key is much larger at \qty{1184}{bytes} and its ciphertext at \qty{1088}{bytes}. This matters because WireGuard is specifically designed to keep its handshake messages small enough to fit within a single unfragmented UDP packet. For IPv4, the Maximum Transmission Unit (MTU) for common deployments over Ethernet is \qty{1500}{bytes}, and subtracting the IPv4 (\qty{20}{bytes}) and UDP (\qty{8}{bytes}) headers leaves only \qty{1472}{bytes} for the payload. IPv6, with its even larger header, further reduces the available budget.
 
 Fitting a full PQC handshake within this budget is very difficult, and exceeding it forces fragmentation which causes the protocol to no longer maintain its 1-RTT handshake core design property.

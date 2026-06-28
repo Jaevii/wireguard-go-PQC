@@ -1,8 +1,7 @@
-\newpage
-\section{Results}\label{sec:results}
+
 This section presents the empirical results from the benchmark as described in Section \ref{sec:measurement}. The results cover handshake latency, message sizes, and memory footprint for each of the nine evaluated variants: classical WireGuard, four ML-KEM variants (hybrid and pure, at NIST security levels 3 and 5), and four HQC variants (hybrid and pure, at NIST security levels 3 and 5). The results are then used to answer the research questions posed in Section \ref{research_questions} and to draw comparisons with the related work.
 
-\subsection{Benchmark Metrics}
+\section{Benchmark Metrics}
 
 Table \ref{tab:Results} reports four values for each variant. The \textbf{Initial} and \textbf{Response} columns give the on-wire message sizes in bytes. The \textbf{Baseline RTT} is the mean round-trip time of five consecutive pings on an already-established session, representing pure network overhead with no handshake, with its standard deviation shown in parentheses. The \textbf{Handshake Time} is the mean baseline-subtracted RTT over 5000 trials, with its standard deviation in parentheses. The baseline RTT is consistent at approximately \qty{0.5}{ms} across all nine variants, which confirms that the underlying virtual network conditions did not change between runs and that differences in handshake time reflect cryptographic overhead rather than measurement noise.
 
@@ -28,16 +27,16 @@ Table \ref{tab:Results} reports four values for each variant. The \textbf{Initia
 \multirow{2}{*}{Hybrid-MLKEM-1024} & 1716 & 1660 & 0.517 & 2.374 \\
                          &  &  & (0.035) & (0.336) \\
 \hline
-\multirow{2}{*}{Pure-HQC-192} & 18106 & 9038 & 0.529 & 364.038 \\
+\multirow{2}{*}{Pure-HQC-192} & \num{18106} & 9038 & 0.529 & 364.038 \\
                          &  &  & (0.047) & (14.302) \\
 \hline
-\multirow{2}{*}{Pure-HQC-256} & 28995 & 14481 & 0.520 & 668.182 \\
+\multirow{2}{*}{Pure-HQC-256} & \num{28995} & \num{14481} & 0.520 & 668.182 \\
                          &  &  & (0.044) & (23.451) \\
 \hline
 \multirow{2}{*}{Hybrid-HQC-192} & 4670 & 9070 & 0.549 & 201.687 \\
                          &  &  & (0.059) & (8.220) \\
 \hline
-\multirow{2}{*}{Hybrid-HQC-256} & 7393 & 14513 & 0.538 & 365.557 \\
+\multirow{2}{*}{Hybrid-HQC-256} & 7393 & \num{14513} & 0.538 & 365.557 \\
                          &  &  & (0.062) & (14.777) \\
 \hline
 \end{tabular}
@@ -46,7 +45,7 @@ Table \ref{tab:Results} reports four values for each variant. The \textbf{Initia
 \end{table}
 
 
-\subsection{Handshake Latency}\label{sec:results-latency}
+\section{Handshake Latency}\label{sec:results-latency}
 
 Table \ref{tab:LatencyPercentiles} breaks down handshake latency into mean and tail percentiles to capture both typical performance and worst-case behaviour under the same network conditions.
 
@@ -56,7 +55,7 @@ Table \ref{tab:LatencyPercentiles} breaks down handshake latency into mean and t
 \hline
 \multirow{2}{*}{\textbf{Variant}} & Mean & p50 & p95 & p99 \\ & [ms] & [ms] & [ms] & [ms] \\
 \hline
-Classic            & 1.820   & 1.778   & 2.131   & 2.575   \\
+Classic            & \num{1.820}   & 1.778   & 2.131   & 2.575   \\
 Pure-MLKEM-768     & 1.172   & 1.115   & 1.630   & 1.909   \\
 Pure-MLKEM-1024    & 1.437   & 1.383   & 1.893   & 2.233   \\
 Hybrid-MLKEM-768   & 2.228   & 2.148   & 2.822   & 3.187   \\
@@ -71,23 +70,28 @@ Hybrid-HQC-256     & 365.557 & 366.525 & 388.525 & 402.361 \\
 \label{tab:LatencyPercentiles}
 \end{table}
 
-\subsubsection{ML-KEM}
-A surprising result in the latency data shown in Table \ref{tab:LatencyPercentiles} was that both pure ML-KEM variants had a faster handshake time than classical WireGuard across all measurements. Pure-MLKEM-768 is approximately 36\% faster, and Pure-MLKEM-1024 about 21\% faster. This result seems counterintuitive at first as a handshake with larger messages should not be faster than the optimized classical baseline, but the explanation is found in the benchmark setup. As noted in Section \ref{sec:benchmark}, AES-NI hardware acceleration was available in the virtual machines and used during the benchmark. ML-KEM uses AES-256 in counter mode as an extendable output function during key generation, which maps directly onto AES-NI instructions. The classical X25519 key exchange is based on elliptic-curve arithmetic that receives no benefit from AES-NI, instead relying on general-purpose integer multiply instructions. On this hardware, ML-KEM's encapsulation and decapsulation are therefore faster than the X25519's scalar multiplication, which is why removing the DH operations with KEM operations reduces the total computation time despite the larger message sizes.
+\subsection{ML-KEM}
+A surprising result in the latency data shown in Table \ref{tab:LatencyPercentiles} was that both pure ML-KEM variants had a faster handshake time than classical WireGuard across all measurements. Pure-MLKEM-768 is approximately 36\% faster, and Pure-MLKEM-1024 about 21\% faster. 
+
+This result seems counterintuitive at first as a handshake with larger messages should not be faster than the optimized classical baseline, but the explanation is 
+
+found in the benchmark setup. As noted in Section \ref{sec:benchmark}, AES-NI hardware acceleration was available in the virtual machines and used during the benchmark. ML-KEM uses AES-256 in counter mode as an extendable output function during key generation, which maps directly onto AES-NI instructions. The classical X25519 key exchange is based on elliptic-curve arithmetic that receives no benefit from AES-NI, instead relying on general-purpose integer multiply instructions. On this hardware, ML-KEM's encapsulation and decapsulation are therefore faster than the X25519's scalar multiplication, which is why removing the DH operations with KEM operations reduces the total computation time despite the larger message sizes.
 
 On hardware without Single Instruction, Multiple Data (SIMD) support, such as embedded processors or older CPUs, the result would likely be quite different. The performance advantage of pure ML-KEM over the classical handshake is therefore specific to this instance of hardware and should not be taken as a general expectation.
 
 The hybrid ML-KEM variants, however, are slower than both the classical handshake and the pure-KEM variants. Hybrid-MLKEM-768 has a mean of \qty{2.228}{ms} and Hybrid-MLKEM-1024 has a mean of \qty{2.374}{ms}, representing handshakes approximately 22\% and 30\% slower the classical baseline respectively. This is expected since the hybrid mode keeps all the existing DH operations from the classical handshake and adds a full KEM encapsulation and decapsulation on top.
-
-\subsubsection{HQC}
+\subsection{HQC}
 The HQC results are in a completely different performance category. Pure-HQC-192 has a mean handshake time of \qty{364}{ms} and Pure-HQC-256 even reaches as high as \qty{668}{ms}. The hybrid variants are faster but still far outside any acceptable range, Hybrid-HQC-192 takes \qty{202}{ms} and Hybrid-HQC-256 takes \qty{366}{ms}.
 
-The main cause of this latency is not HQC's computational cost but the IP fragmentation and software reassembly forced by its large message sizes. HQC's public keys and ciphertexts are large enough that every HQC handshake message must be split into multiple IP fragments before transmission. As described in Section \ref{sec:benchmark}, the virtual network path in this benchmark handles fragmentation and reassembly entirely in software, without hardware offloading. The operating system must buffer all incoming fragments, wait for the final fragment to arrive, and then reassemble the complete datagram before WireGuard can begin processing the message. This reassembly overhead grows with the number of fragments and is the primary driver of the observed latencies, which is consistent with the fragment counts discussed in Section \ref{sec:results-fragmentation}. The standard deviations shown in Table \ref{tab:Results} for the HQC variants further support this notion. Pure-HQC-192 has a high standard deviation of \qty{14.3}{ms} and Pure-HQC-256 has \qty{23.5}{ms}, compared to the low standard deviation of less than \qty{0.35}{ms} for all ML-KEM variants.
+The main cause of this latency is not HQC's computational cost but the IP fragmentation and software reassembly forced by its large message sizes. HQC's public keys and ciphertexts are large enough that every HQC handshake message must be split into multiple IP fragments before transmission. As described in Section \ref{sec:benchmark}, the virtual network path in this benchmark handles fragmentation and reassembly entirely in software, without hardware offloading. The operating system must buffer all incoming fragments, wait for the final fragment to arrive, and then reassemble the complete datagram before WireGuard can begin processing the message. This reassembly overhead grows with the number of fragments and is the primary driver of the observed latencies, which is consistent with the fragment counts discussed in Section \ref{sec:results-fragmentation}. 
+
+The standard deviations shown in Table \ref{tab:Results} for the HQC variants further support this notion. Pure-HQC-192 has a high standard deviation of \qty{14.3}{ms} and Pure-HQC-256 has \qty{23.5}{ms}, compared to the low standard deviation of less than \qty{0.35}{ms} for all ML-KEM variants.
 
 
-\subsection{Message Size}
+\section{Message Size}
 Table \ref{tab:Results} shows a large variance in the message sizes across the nine variants. To understand where these sizes come from, it helps to look at the individual fields that make up each message.
 
-\subsubsection{Initiation Message Fields Breakdown}
+\subsection{Initiation Message Fields Breakdown}
 
 A fixed overhead of \qty{84}{bytes} is identical across all nine variants, as the fields it covers are independent of the choice of algorithm. As illustrated in Figure \ref{fig:wg-initiation}, these fields are the 4-byte message type, the 4-byte sender index, the 28-byte encrypted timestamp with its authentication tag, and the two 16-byte MAC fields used for denial-of-service resistance.
 
@@ -105,18 +109,18 @@ Pure-MLKEM-1024   & 1568  & 1568  & 1568  & 84 \\
 Hybrid-MLKEM-768  & 1216  & 0     & 32    & 84 \\
 Hybrid-MLKEM-1024 & 1600  & 0     & 32    & 84 \\
 Pure-HQC-192      & 4522  & 8978  & 4522  & 84 \\
-Pure-HQC-256      & 7245  & 14421 & 7245  & 84 \\
+Pure-HQC-256      & 7245  & \num{14421} & 7245  & 84 \\
 Hybrid-HQC-192    & 4554  & 0     & 32    & 84 \\
 Hybrid-HQC-256    & 7277  & 0     & 32    & 84 \\
 \hline
 \end{tabular}
-\caption{Breakdown of initiation message fields into ephemeral fields and fixed protocol overhead.}
+\caption{Breakdown of initiation message size (in bytes) by field type: ephemeral key material, KEM ciphertext, static key material, and fixed protocol overhead (MAC, timestamp, sender index).}
 \label{tab:InitiationMessageBreakdown}
 \end{table}
 
 The significantly larger field sizes of the pure-KEM variants arises from the need for three KEM components to be present in the message simultaneously. As mentioned in Section \ref{sec:method-purekem}, the initiator sends its ephemeral KEM public key so the responder can encapsulate the ephemeral shared secret, a ciphertext \texttt{ct\_es} produced by encapsulating to the responder's static KEM public key, and an encrypted copy of its own static KEM public key so the responder can identify the peer. 
 
-\subsubsection{Response Message Fields Breakdown}
+\subsection{Response Message Fields Breakdown}
 
 The response message is simpler than the initiation in all modes. As shown in Figure \ref{fig:wg-response}, the message consists of a fixed header and a variable KEM section. The fixed portion accounts for 60 bytes: the 4-byte message type, 4-byte sender index, 4-byte receiver index, 16-byte empty encrypted payload with its authentication tag, and the two 16-byte MAC fields.
 
@@ -132,12 +136,12 @@ Pure-MLKEM-1024   & 0     & 1568  & 0  & 60 \\
 Hybrid-MLKEM-768  & 32    & 1088  & 0  & 60 \\
 Hybrid-MLKEM-1024 & 32    & 1568  & 0  & 60 \\
 Pure-HQC-192      & 0     & 8978  & 0  & 60 \\
-Pure-HQC-256      & 0     & 14421 & 0  & 60 \\
+Pure-HQC-256      & 0     & \num{14421} & 0  & 60 \\
 Hybrid-HQC-192    & 32    & 8978  & 0  & 60 \\
-Hybrid-HQC-256    & 32    & 14421 & 0  & 60 \\
+Hybrid-HQC-256    & 32    & \num{14421} & 0  & 60 \\
 \hline
 \end{tabular}
-\caption{Breakdown of response message fields into ephemeral fields and fixed protocol overhead.}
+\caption{Breakdown of response message size (in bytes) by field type: ephemeral key material, KEM ciphertext, static key material, and fixed protocol overhead (MAC, timestamp, sender index).}
 \label{tab:ResponseMessageBreakdown}
 \end{table}
 
@@ -147,7 +151,7 @@ Because the classical DH exchange has been removed entirely, the pure-KEM respon
 
 Response messages are consistently smaller than the initiation messages in the pure-KEM modes, by a factor of around two to three depending on the algorithm. This asymmetry arises as the initiator bears the cost of sending its ephemeral public key, the authentication ciphertext \texttt{ct\_es}, and its encrypted static public key, while the responder only needs to return the single ciphertext \texttt{ct\_ee}. In the hybrid modes this asymmetry is noticeably smaller, since both messages carry only a Curve25519 ephemeral key alongside a single KEM component.
 
-\subsubsection{Message Fragmentation}\label{sec:results-fragmentation}
+\subsection{Message Fragmentation}\label{sec:results-fragmentation}
 
 Because WireGuard runs over UDP, any message exceeding the \qty{1472}{byte} IPv4 payload limit defined in Section \ref{wg-PQC} must be split into multiple IP fragments and reassembled at the receiver before WireGuard can process it. Table \ref{tab:Fragments} shows how many fragments each variant requires per message direction.
 
@@ -176,7 +180,7 @@ Among the benchmarked post-quantum variants, Hybrid-MLKEM-768 is the only one th
 
 The HQC variants tell a very different story: both the initiation and response messages require multiple fragments. Even the hybrid HQC variants are heavily fragmented in the response direction because the large HQC ciphertexts must be transmitted. The handshake latency results in Table \ref{tab:LatencyPercentiles} are a direct consequence of this fragmentation, and the gap between the ML-KEM and HQC variants in Table \ref{tab:Fragments} mirrors the gap observed in latency.
 
-\subsection{Per-Peer Static Key Storage}\label{sec:results-peermemory}
+\section{Per-Peer Static Key Storage}\label{sec:results-peermemory}
 Each peer entry stores a 32-byte Curve25519 static public key. This stays the same for the hybrid variants, as the hybrid mode does not introduce a static KEM key and authentication still relies on Curve25519. The pure-KEM mode replaces this with a static KEM public key. These static keys are provisioned out of band before any handshake can take place, and must remain resident in memory for the server to perform peer lookup during incoming handshakes.
 
 \begin{table}[H]
@@ -196,21 +200,21 @@ Pure-HQC-256      & \qty{7245}{B} & \qty{708}{kB}  & \qty{69.1}{MB}  & \qty{691}
 \label{tab:StaticStorage}
 \end{table}
 
-Table \ref{tab:StaticStorage} shows that at small peer counts the choice of algorithm has no meaningful impact on storage. At 10,000 peers the differences become visible but the pure ML-KEM variants remain well within the capacity of a typical server. The pure HQC variants grow considerably more, with HQC-256 requiring around 220 times more storage than the classical case at this scale. At 100,000 peers the gap widens further, and the pure HQC variants represent a storage overhead that could be a concern on memory-constrained hardware. 
+Table \ref{tab:StaticStorage} shows that at small peer counts the choice of algorithm has no meaningful impact on storage. At \num{10000} peers the differences become visible but the pure ML-KEM variants remain well within the capacity of a typical server. The pure HQC variants grow considerably more, with HQC-256 requiring around 220 times more storage than the classical case at this scale. At \num{100000} peers the gap widens further, and the pure HQC variants represent a storage overhead that could be a concern on memory-constrained hardware. 
 
 
-\subsection{Comparisons With Related Work}\label{sec:results-comparisons}
+\section{Comparisons With Related Work}\label{sec:results-comparisons}
 
-\subsubsection{PQ-WireGuard}
-Hülsing et al.\ report a client-side handshake time of around \qty{1.0}{ms} over a virtual \qty{10}{Gbps} link with no added latency \cite{pqwg}, which is in the same order of magnitude as the pure ML-KEM variants in Table \ref{tab:LatencyPercentiles}. PQ-WireGuard fits both handshake messages within the \qty{1472}{byte} IPv4 budget, which the pure ML-KEM variants in this thesis do not achieve, as shown in Table \ref{tab:Fragments}. The Classic McEliece parameter set used produces a static public key of \qty{512}{KB}, which, at 10,000 peers amounts to approximately \qty{5}{GB} for the peer table, compared to roughly \qty{11}{MB} for pure ML-KEM-768 at the same scale (cf. Table \ref{tab:StaticStorage}).
+\subsection{PQ-WireGuard}
+Hülsing et al.\ report a client-side handshake time of around \qty{1.0}{ms} over a virtual \qty{10}{Gbps} link with no added latency \cite{pqwg}, which is in the same order of magnitude as the pure ML-KEM variants in Table \ref{tab:LatencyPercentiles}. PQ-WireGuard fits both handshake messages within the \qty{1472}{byte} IPv4 budget, which the pure ML-KEM variants in this thesis do not achieve, as shown in Table \ref{tab:Fragments}. The Classic McEliece parameter set used produces a static public key of \qty{512}{KB}, which, at \num{10000} peers amounts to approximately \qty{5}{GB} for the peer table, compared to roughly \qty{11}{MB} for pure ML-KEM-768 at the same scale (cf. Table \ref{tab:StaticStorage}).
 
-\subsubsection{Rosenpass}
+\subsection{Rosenpass}
 A direct latency comparison with Table \ref{tab:LatencyPercentiles} is not meaningful for Rosenpass \cite{rosenpass}, since it operates as a separate sidecar process whose cryptographic cost must be added to WireGuard's handshake time. Rosenpass fits both its InitHello and RespHello messages within a single IPv6 packet. Out of the variants in this thesis, only Hybrid-MLKEM-768 achieves a comparable result, and only under IPv4 (Table~\ref{tab:Fragments}).
 
-\subsubsection{Rebar}
+\subsection{Rebar}
 Rebar \cite{rebar} was benchmarked with \qty{30.9}{ms} of added artificial latency and reports a handshake time of approximately \qty{36.9}{ms} for the initiator, compared to \qty{33.6}{ms} for classical WireGuard in the same environment. Its initiation and response messages are \qty{1052}{bytes} and \qty{1088}{bytes} respectively, fitting within the \qty{1232}{byte} IPv6 budget that none of the pure-KEM variants in this thesis achieve.
 
-\subsection{Research Questions}\label{sec:results-rq} 
+\section{Research Questions}\label{sec:results-rq} 
 This subsection revisits the research questions posed in Section \ref{research_questions} and answers each one using the results presented above. The goal is to translate the concrete benchmark findings into conclusions about the performance, resource requirements, and practical deployability of ML-KEM and HQC as post-quantum replacements for the classical WireGuard handshake.
 
 \textbf{RQ1: How do NIST-selected post-quantum key encapsulation mechanisms, specifically ML-KEM and HQC, affect the performance of a WireGuard handshake?}

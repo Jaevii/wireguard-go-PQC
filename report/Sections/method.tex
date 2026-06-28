@@ -1,7 +1,4 @@
-\newpage
-\section{Method}
-
-\subsection{Research Approach}\label{sec:resapp}
+\section{Research Approach}\label{sec:resapp}
 This thesis addresses the problem statement and research questions stated in Section \ref{research_questions} through a combination of qualitative and quantitative research. Figure \ref{fig:research-process} illustrates the overall research process from the initial problem statement to the final evaluation.
 
 \begin{figure}[H] 
@@ -16,20 +13,20 @@ As shown in Figure \ref{fig:research-process}, the process begins with the probl
 The quantitative phase builds on both the problem statement and the qualitative findings. It begins with a design and concept stage in which the literature study and protocol analysis are translated into concrete decisions about which algorithms to evaluate, which handshake modes to implement, and how to integrate KEM operations into the protocol. This is followed by the implementation in wireguard-go, then a controlled benchmarking test, and finally an empirical evaluation in which the results are analyzed and interpreted in the context of the research questions and related work.
 
 
-\subsection{Literature Study}\label{sec:litstudy}
-Primary sources were consulted across the three areas mentioned above in Section \ref{sec:resapp}: post-quantum cryptography standardization, the WireGuard protocol, and prior post-quantum WireGuard work. For post-quantum cryptography, these were the NIST standardization documentation \cite{nistpqc, Moody2025NISTIR8545}, the ML-KEM and HQC algorithm specifications \cite{mlkem, hqc}, and background literature on lattice-based and code-based cryptography. For WireGuard, the primary source was the original paper by Donenfeld \cite{wireguard}, supplemented by the Noise Protocol Framework specification \cite{noise}. The three prior post-quantum WireGuard papers described in Section \ref{relatedwork} were the primary references for design decisions \cite{pqwg, rosenpass, rebar}.
+\section{Literature Study}\label{sec:litstudy}
+Primary sources were consulted across the three areas mentioned above in Section \ref{sec:resapp}: post-quantum cryptography standardization, the WireGuard protocol, and prior post-quantum WireGuard work. For post-quantum cryptography, these were the NIST standardization documentation \cite{nistpqc, Moody2025NISTIR8545}, the ML-KEM and HQC algorithm specifications \cite{mlkem, hqc}, and background literature on lattice-based and code-based cryptography. For WireGuard, the primary source was the original paper by Donenfeld \cite{wireguard}, supplemented by the Noise Protocol Framework specification \cite{noise}. The three prior post-quantum WireGuard papers described in Chapter \ref{ch4} were the primary references for design decisions \cite{pqwg, rosenpass, rebar}.
 
 Sources were selected based on direct relevance: only primary research papers, official standards documents, and whitepapers from the implementing organizations were used as the basis for design decisions. Secondary sources such as blog posts and news articles were used only for contextual framing, not for technical claims. 
 
 The literature study served two purposes: it informed the selection of algorithms and handshake modes to evaluate, and it provided the performance reference points against which the empirical results in Section \ref{sec:results-comparisons} are compared.
 
 
-\subsection{Protocol Analysis}\label{protocol}
+\section{Protocol Analysis}\label{protocol}
 The protocol analysis phase examined WireGuard's code base to identify exactly where and how post-quantum KEM operations could be integrated. The primary source for this analysis was the wireguard-go source code \cite{wireguardgo}.
 
 The analysis focused on three questions:
 \begin{itemize}
-    \item Which parts of the handshake are tied to Diffie-Hellman and must to be modified?
+    \item Which parts of the handshake are tied to Diffie-Hellman and must be modified?
     \item What constraints does the protocol impose on the size and structure of handshake messages?
     \item What changes to the existing codebase are necessary to support variable-length KEM key material without breaking the existing classical handshake path?
 \end{itemize}
@@ -43,40 +40,42 @@ Examining the codebase revealed that the fixed-size array fields used for the cl
 The insights gained from this phase was an understanding of the integration requirements that directly shaped the design decisions described in Section \ref{sec:design}.
 
 
-\subsection{Design Choices and Rationale}\label{sec:design}
-\subsubsection{In-Handshake Integration Rather Than PSK Injection} 
+\section{Design Choices and Rationale}\label{sec:design}
+\subsection{In-Handshake Integration Rather Than PSK Injection} 
 Rather than following the PSK injection approach taken by Rosenpass, the implementation focuses on integrating PQC directly into the WireGuard handshake. PSK injection, while practical and easy to deploy, only achieves post-quantum confidentiality and does not address authentication. Since the static Curve25519 keys used for peer authentication remain in place, a quantum adversary can still break authentication even if PSK injection is used. A deeper in-handshake integration is necessary to evaluate the full scope of the post-quantum transition, including both confidentiality and authentication. 
 
 The trade-off is that in-handshake integration requires non-trivial modifications to WireGuard's internals, which makes the implementation more invasive and harder to ship in production. This is an acceptable cost in the context of a research implementation intended to produce empirical measurements. 
 
-\subsubsection{Both Hybrid and Pure-KEM Modes} 
+\subsection{Both Hybrid and Pure-KEM Modes} 
 Two distinct handshake variants were implemented: a hybrid mode that runs an additional KEM operation alongside the existing Curve25519 exchange, and a pure-KEM mode that replaces the Curve25519 exchange entirely. The two modes address different threat models and different points in the post-quantum migration timeline.
 
-The hybrid mode targets the current deployment environment, where PQC algorithms are new and have not yet received the same degree of cryptanalytic scrutiny as classical schemes. Running both algorithms in parallel ensures Forward Secrecy as mentioned in Section \ref{sec:forward_secrecy}, that the session is compromised only if both components fail simultaneously, thus providing a conservative security guarantee during the transition period. The hybrid mode does not achieve post-quantum authentication, since the static keys remain classical. 
+The hybrid mode targets the current deployment environment, where PQC algorithms are new and have not yet received the same degree of cryptanalytic scrutiny as classical schemes. 
+
+Each operation independently contributes an ephemeral key component, preserving Forward Secrecy as described in Section \ref{sec:forward_secrecy}. The hybrid construction also provides a conservative security guarantee during the transition period: the combined session key is only compromised if both operations are broken simultaneously. The hybrid mode does not achieve post-quantum authentication, since the static keys remain classical. 
 
 The pure-KEM mode uses KEM-based operations for both key agreement and identity authentication, achieving full post-quantum security at the cost of larger messages and more significant protocol restructuring. It corresponds more closely to the long-term vision of a fully post-quantum WireGuard and allows the additional overhead of full PQ authentication to be measured directly.
 
-\subsubsection{Userspace Implementation} 
+\subsection{Userspace Implementation} 
 The implementation was built using the \texttt{wireguard-go} userspace implementation. This choice was primarily motivated by practicality as integrating a C-language foreign-function interface to liboqs into the kernel module would require substantially more development time and is not necessary for a research evaluation. The userspace implementation provides the same handshake logic and is representative of the protocol behavior, but its performance numbers differ from the kernel module due to the additional TUN interface overhead inherent to userspace packet processing. 
 
-\subsubsection{Algorithm Selection} 
+\subsection{Algorithm Selection} 
 All six non-classical variants evaluated in this thesis use NIST-selected security levels, specifically ML-KEM-768 and ML-KEM-1024 (NIST security levels 3 and 5 respectively), and HQC-192 and HQC-256 (levels 3 and 5). These levels correspond to 192-bit and 256-bit post-quantum security, which match the NSA Commercial National Security Algorithm Suite 2.0 (CNSA 2.0) requirements for national security systems \cite{NSA2022CNSA2}. ML-KEM-512 and HQC-128, which target 128-bit security, are implemented in the codebase but not benchmarked as they fall below the CNSA 2.0 threshold.
 
-\subsubsection{Modularity Over Performance} 
+\subsection{Modularity Over Performance} 
 The implementation is designed to be modular and extensible rather than optimized for performance. A central \texttt{pqc.Config} struct encodes the active mode and the chosen KEM instance, and all handshake code branches on this configuration rather than being hardcoded for a specific algorithm. This means that new KEM algorithms can be added simply by implementing the \texttt{kems.KEM} interface and registering a new entry in the mode registry, without modifying any handshake logic. The cost of this design is dispatch overhead that a production-optimized version would not have.
 
 
-\subsection{Implementation}
+\section{Implementation}
 To support both the hybrid and pure-KEM handshake variants, the \texttt{wireguard-go} codebase was extended with a \texttt{pqc} package and a \texttt{pqc/kems} subpackage. The \texttt{kems} package defines a \texttt{KEM} interface with methods for key generation, encapsulation, and decapsulation, along with accessor methods for key and ciphertext sizes. Concrete KEM types (\texttt{mlkem512}, \texttt{mlkem768}, \texttt{mlkem1024}, \texttt{hqc128}, \texttt{hqc192}, \texttt{hqc256}) embed a shared \texttt{liboqsKEM} base type that calls into the liboqs library, and each type provides only the constant size values and the algorithm name that differ between variants. This design means that the liboqs foreign-function interface code is written once and shared across all algorithms.
 
 The \texttt{pqc} package exposes a \texttt{Config} type that is constructed from a mode name string (for example, \texttt{"hybrid-mlkem768"} or \texttt{"mlkem1024"}) and stored on the \texttt{Device} struct. The active \texttt{Config} is read by the handshake code to determine which mode and algorithm to use. The mode name is also read from the \texttt{WIREGUARD\_KEM} environment variable at startup, making it easy to run the same binary in different modes without recompilation.
 
-\subsubsection{Liboqs} 
+\subsection{Liboqs} 
 The implementation uses liboqs-go \cite{liboqsgo}, the Go binding for the Open Quantum Safe (OQS) project's liboqs C library \cite{liboqs}, to provide the ML-KEM and HQC implementations. liboqs is a widely used open-source library for prototyping and experimenting with post-quantum cryptography. Its algorithm implementations are derived from the reference and optimized code submitted by algorithm teams to the NIST PQC standardization project. Using the liboqs library ensures that the benchmark results reflect the performance of well-vetted, architecture-optimized algorithm implementations closely aligned with the NIST submissions. 
 
 One consequence of using a C library through cgo is that memory returned by liboqs resides in C-managed memory that becomes invalid after the library's cleanup function \texttt{handle.Clean()} is called. The implementation therefore copies all liboqs return values into Go-managed slices before the cleanup deferred call runs, avoiding use-after-free errors that would otherwise be silent in production.
 
-\subsubsection{Hybrid Mode}\label{sec:method-hybrid}
+\subsection{Hybrid Mode}\label{sec:method-hybrid}
 As described in Section \ref{sec:noise-ik}, the classical handshake performs four DH operations spread across the initiation and response messages. The hybrid variant keeps all of these intact and adds a single ephemeral KEM exchange on top, without modifying any of the existing Curve25519 steps.
 Figure \ref{fig:HYBRIDKEM} illustrates the full hybrid handshake flow.
 
@@ -96,7 +95,7 @@ Upon receiving the response, the initiator reads the KEM ciphertext from the res
 At session key derivation time, the KEM shared secret is not mixed directly into the chain key during the handshake. Instead, it is combined with the classical chain key through a final \texttt{KDF} step immediately before the session keys are derived. This means that the session keys depend on both the classical DH outputs and the KEM shared secret, and the session is compromised only if an adversary can break both components. The hybrid handshake therefore guarantees post-quantum Forward Secrecy for the session key. If the KEM is broken, classical security remains, and if the classical DH is broken by a quantum adversary, the KEM compensates.
 
 
-\subsubsection{Pure-KEM Mode}\label{sec:method-purekem}
+\subsection{Pure-KEM Mode}\label{sec:method-purekem}
 The pure-KEM handshake is intended as a complete replacement of the Noise\_IKpsk2 handshake. As shown in Figure \ref{fig:PUREKEMFLOW}, the exchange follows the same two-message structure but replaces every DH operation with a KEM operation. A different construction string (\texttt{Noise\_KEM\_IKpsk2\_ChaChaPoly\_BLAKE2s}) is used, and the algorithm name is additionally mixed into the initial transcript hash so that sessions using different algorithms cannot be confused.
 
 In the initiation message, the initiator first mixes the responder's static public key into the transcript hash as identity commitment, then generates a fresh ephemeral KEM keypair, mixes the ephemeral KEM public key into the hash and chain key, and includes it in the message. The initiator then encapsulates a shared secret to the responder's static KEM public key, producing a ciphertext (\texttt{ct\_es}) that is first mixed into the transcript hash and then also included in the message. This shared secret is mixed into the chain key, which means the subsequent encryption of the initiator's own static KEM public key can only be decrypted by the legitimate responder. Lastly, the initiator's static KEM public key is encrypted against the transcript hash and included in the message, which allows the responder to look up their peer entry. 
@@ -114,25 +113,25 @@ On receiving the response, the initiator decapsulates \texttt{ct\_ee}, mixes the
 
 This design achieves full post-quantum authentication because both the key agreement and the identity commitments are based solely on KEM operations over post-quantum public keys.
 
-\subsubsection{Message Structures and Serialization}
+\subsection{Message Structures and Serialization}
 Because the sizes of KEM public keys and ciphertexts vary by algorithm and are not known at compile time, the message structures for both variants uses variable-length slice fields instead of fixed-size arrays. The sizes of these fields are precomputed at device initialization time from the active \texttt{Config} and stored as fields on the \texttt{Device} struct. The serialization and deserialization code uses these stored sizes to correctly delimit the fields when reading from and writing to the wire. 
 
-The \texttt{Config} type also exposes helper methods: \texttt{MessageInitiationSize()}, \texttt{MessageResponseSize()}, \texttt{InitiationEphemeralSize()}, etc. that compute the expected wire size of each message for the active mode. These are used to pre-allocate correctly sized buffers and to validate incoming message lengths before attempting to parse them.
+The \texttt{Config} type also exposes helper methods: \texttt{MessageInitiationSize()}, \\\texttt{MessageResponseSize()}, \texttt{InitiationEphemeralSize()}, etc. that compute the expected wire size of each message for the active mode. These are used to pre-allocate correctly sized buffers and to validate incoming message lengths before attempting to parse them.
 
-\subsubsection{UAPI Extensions}
+\subsection{UAPI Extensions}
 WireGuard's userspace API (UAPI) was extended to support the provisioning, retrieval and expiration of KEM public keys for both the local device and each configured peer. A \texttt{kem\_public\_key} field was added to both the device-level and peer-level sections of the UAPI protocol. On input, the field accepts a Base64-encoded public key and validates its length against the active KEM's expected public key size. On output, the field is emitted alongside the standard Curve25519 public key when a KEM public key has been configured. A secondary lookup map, \texttt{kemKeyMap}, was added to the \texttt{peers} struct to support peer lookup by KEM public key, which is used in the pure-KEM handshake to identify the initiator from its encrypted static KEM public key.
 
 
-\subsection{Measurement Methodology}\label{sec:measurement}
+\section{Measurement Methodology}\label{sec:measurement}
 Handshake latency was measured using a ping-based RTT method. After forcing a new handshake by expiring the session keys via WireGuard's UAPI interface, a single \texttt{ping} was issued from the initiator to the responder. Because the session keys has been invalidated, the ping cannot be delivered until a full handshake completes, meaning that the measured round-trip time captures the complete handshake latency plus the ICMP echo time. This approach requires no log parsing, no cross-VM clock synchronization, and no modification to WireGuard's internal logging. 
 
-\subsubsection*{Baseline RTT} 
+\subsection*{Baseline RTT} 
 To isolate the handshake time from the underlying network overhead, a rolling baseline RTT was maintained throughout the benchmark. Every 100 trials, while the session is still live and no key expiry has been issued, five consecutive pings are sent and their mean is recorded as the current baseline. This per-trial baseline was then subtracted from each handshake RTT to produce the net handshake time reported in the results. Using a rolling baseline rather than a single measurement taken at startup accounts for any drift in network conditions over the course of a long benchmark run. 
 
-\subsubsection*{Warmup} 
+\subsection*{Warmup} 
 Before the recorded trials began, 100 warmup handshakes were performed and discarded. This ensured that any initial overhead from process startup, memory allocation, or cache warming did not influence the results. Kalibera and Jones \cite{kalibera2013} identify initialisation noise as a key source of measurement bias and recommend discarding an initialised warmup period before recording live measurements.
 
-\subsubsection*{Recorded Trials} 
+\subsection*{Recorded Trials} 
 Each benchmark run consisted of 5000 recorded handshake trials per algorithm variant. This count was chosen to ensure convergence across all nine variants under the same trial count. While Kalibera and Jones \cite{kalibera2013} caution against unnecessary repetition, the HQC variants exhibit considerably higher variance than the ML-KEM variants due to fragmentation overhead, and 5000 trials ensures a sufficiently narrow confidence interval for the most variable cases without requiring per-variant dimensioning experiments.
 
 Each trial followed the same sequence: 
@@ -144,24 +143,24 @@ Each trial followed the same sequence:
 A trial was considered failed if the ping did not return within 15 seconds, and any run in which more than 5\% of trials fail was aborted. From the recorded values, mean, standard deviation, median, and 95th and 99th percentile latencies were computed.
 
 
-\subsection{Benchmarking Setup}\label{sec:benchmark}
-All benchmarks were performed using two identical virtual machines (VMs) running Debian 12, hosted on the same Kernel-based VM hypervisor. Each VM was configured with four virtual CPU cores, each mapped to a single-threaded socket, based on a QEMU Virtual CPU (x86\_64, family 15, model 107) running at \qty{2.4}{GHz}, with \qty{3.8}{GiB} of RAM allocated. Notably, AES-NI hardware acceleration was available within the virtualized environment and used during the benchmarks \cite{intel_aesni}. 
+\section{Benchmarking Setup}\label{sec:benchmark}
+All benchmarks were performed using two identical virtual machines (VMs) running Debian 12, hosted on the same Kernel-based VM hypervisor. Each VM was configured with four virtual CPU cores, each mapped to a single-threaded socket, based on a QEMU Virtual CPU (x86\_64, family 15, model 107) running at \qty{2.4}{GHz}, with \qty{3.8}{GiB} of RAM allocated. 
 
 The VMs were connected via a virtual switch, with each network interface configured with a standard 1500-byte MTU. One VM acted as the WireGuard initiator and the other as the responder for the duration of all benchmarks. Since both VMs reside on the same physical host, the network path between them is entirely virtual, eliminating real-network variables such as jitter and packet loss. This provides a stable and reproducible environment for isolating cryptographic overhead, though it means the results do not capture the additional latency that would be present in a real-world deployment across a physical network.
 
 Furthermore, since traffic between the two VMs is handled entirely by the hypervisor's virtual switch, UDP fragmentation and reassembly occurs in software without the packet loss that fragmented datagrams can experience on a real network path. This means that handshake variants whose messages exceed the 1500-byte MTU will complete successfully in this environment despite violating WireGuard's design assumption of unfragmented delivery, and their measured latency does not reflect the reliability penalty that fragmentation would incur in practice.
 
 
-\subsection{Reliability, Validity, and Generalizability} 
+\section{Reliability, Validity, and Generalizability} 
 
-\subsubsection{Qualitative Research} 
+\subsection{Qualitative Research} 
 The literature study and protocol analysis were conducted using primary sources only, with the selection rationale described in Section \ref{sec:litstudy}. In qualitative research, reliability refers to the consistency of the analytical procedures and is dependent on maintaining a clear decision trail so that another researcher could arrive at similar conclusions \cite{noble2025}. Since all sources used are publicly available and the reasoning connecting them to the design decisions in Section \ref{sec:design} is made explicit, the qualitative phase is considered reliable in the sense described by Runeson and Höst \cite{runeson2009}.
 
 Validity in qualitative research concerns the precision with which the findings accurately reflect the underlying material \cite{noble2025}. The protocol analysis was conducted directly against the wireguard-go source code rather than a secondhand description of it. A risk to validity in any literature study is selective reading, this was partially mitigated by engaging with all three prior post-quantum WireGuard papers regardless of their approach, including Rosenpass whose PSK injection strategy was not followed, with the reasoning made explicit in Section \ref{sec:design}.
 
 Generalizability in qualitative research, or applicability in Lincoln and Guba's terminology, applies to whether findings can be transferred to other contexts or settings \cite{noble2025}. The findings here are specific to wireguard-go and the current WireGuard handshake design, so direct generalization is limited. However, the analytical approach and the design rationale documented in Section \ref{sec:design} transfer to other Noise-based protocols and future algorithm integrations.
 
-\subsubsection{Quantitative Research} 
+\subsection{Quantitative Research} 
 Reliability is concerned with to what extent the data and the analysis are dependent on the specific researchers \cite{runeson2009}. The benchmark is fully automated and the setup is documented in Section \ref{sec:measurement} in sufficient detail to allow reproduction on equivalent hardware. The 5000-trial sample size and reported standard deviations also allow the reader to assess the stability of the results.
 
 Internal validity relates to the extent to which the design and analysis may have been compromised by confounding variables \cite{kitchenham2002}. The measured RTT includes overhead beyond the handshake itself, notably the underlying network latency between the two VMs. The rolling baseline subtraction addresses this by isolating the cryptographic contribution from that overhead latency. Since both VMs are on the same physical host, network conditions are stable and uniform across all variants, reducing the likelihood that observed latency differences are caused by network variation rather than cryptographic cost.

@@ -1,19 +1,18 @@
-\newpage
-\section{Discussion}
+
 This section outlines the contributions of the thesis, examines the practical consequences of the findings, and highlights the key constraints imposed by WireGuard's design. It further compares the implementation against existing post-quantum WireGuard solutions, reflects on the ethical and sustainability implications of the transition to post-quantum cryptography, and aims to direct future research. As this field is constantly evolving, some observations reflect the state of the art at the time of writing, and the landscape may change as both PQC implementations and the NIST standardization process mature.
 
-\subsection{Contributions} 
-\subsubsection{Contribution to Literature} 
+\section{Contributions} 
+\subsection{Contribution to Literature} 
 This thesis contributes to the literature on post-quantum protocol integration by providing an empirical comparison of two NIST-selected KEMs, ML-KEM and HQC, within the same WireGuard codebase and under the same measurement conditions. Prior work evaluated different algorithms in isolation or relied on separate implementations, making direct performance comparisons difficult. The results here demonstrate concretely that algorithm choice has a decisive impact on WireGuard compatibility. The thesis also extends the literature by evaluating both hybrid and pure-KEM handshake modes at two NIST security levels, producing a more complete picture of the security-performance trade-off space than previous studies. Finally, the analysis of the pure-KEM mode's full post-quantum authentication property and its associated deployment costs adds to the understanding of what a complete quantum-resistant WireGuard deployment would require. 
 
-\subsubsection{Contribution to Practice} 
+\subsection{Contribution to Practice} 
 This thesis contributes to practice by providing a working open-source implementation of post-quantum WireGuard in \texttt{wireguard-go} that supports both hybrid and pure-KEM modes for ML-KEM and HQC. The implementation can serve as a reference point for evaluating PQC migration options for VPN infrastructure. The benchmark results provide concrete latency and message-size figures that can be used to assess the operational impact of each variant before committing to a migration path. The finding that Hybrid-MLKEM-768 fits within the standard IPv4 MTU and adds only around 22\% to handshake time provides a clear choice for operators who need to address the ``harvest now, decrypt later'' threat today. They can do so with this variant without replacing their existing static key infrastructure or accepting significant performance degradation. 
 
-\subsubsection{Managerial Contribution} 
+\subsection{Managerial Contribution} 
 From a managerial perspective, this thesis supports decision-making for organizations that must plan their cryptographic migration under regulatory timelines such as CNSA 2.0 and the European Commission's 2030 deadline. The results show that a hybrid ML-KEM deployment is achievable within current WireGuard infrastructure without a full system redesign, which lowers the barrier for an initial migration. The comparison of per-peer storage requirements across deployment scales gives capacity planners a direct way to estimate the infrastructure impact of switching from classical to post-quantum static keys. The clear performance gap between ML-KEM and HQC also simplifies algorithm selection for organizations running WireGuard under standard MTU constraints. 
 
 
-\subsection{MTU Problem}
+\section{MTU Problem}
 The 1472-byte IPv4 payload budget is the single most constraining property of WireGuard for post-quantum integration. All prior work on post-quantum WireGuard has treated it as a hard constraint, and the algorithm selection in PQ-WireGuard \cite{pqwg} and Rebar \cite{rebar} was shaped primarily by the requirement to stay within this budget.
 
 As the results in Table \ref{tab:Fragments} show, only one post-quantum variant in this thesis, Hybrid-MLKEM-768, fits within a single IPv4 packet in both message direction, making it the only variant that fully preserves WireGuard's single-packet handshake design principle. The fragmentation penalty of the remaining variants is structurally unavoidable given the sizes of current NIST-standardized KEM parameters.
@@ -23,7 +22,7 @@ Two approaches currently exist for reducing message sizes further. The first is 
 The IPv6 budget of \qty{1232}{bytes} is even tighter than IPv4, and none of the KEM variants fit within it in the initiation direction. This is a significant concern for future deployments, particularly in environments where IPv6 is preferred or mandatory.
 
 
-\subsection{Full Post-Quantum Authentication}
+\section{Full Post-Quantum Authentication}
 The pure-KEM mode is the only variant in this thesis that achieves full post-quantum authentication. In this mode, both the session key material and the identity commitments are based entirely on KEM operations over post-quantum public keys. A quantum adversary equipped with Shor's algorithm cannot break either component, since no classical operations remain in the handshake. 
 
 Although achieving it comes at a substantial cost in message size. The initiation message must carry more than twice the KEM material that the hybrid mode requires. A second practical cost is the out-of-band static key provisioning. Each peer must be configured with the KEM static public keys of all its peers before any handshake can take place. As shown in Table \ref{tab:StaticStorage}, this remains manageable at realistic deployment scales, but it is still a 37-fold increase over the 32-byte Curve25519 static key at the very least. Operator tooling, configuration file formats, and key distribution systems would all need to be updated to handle these larger keys.
@@ -31,28 +30,28 @@ Although achieving it comes at a substantial cost in message size. The initiatio
 So, for operators whose primary concern is data confidentiality under the HNDL threat model, the hybrid mode is sufficient. For operators who need to guarantee authentication against a quantum adversary, the pure-KEM mode is required despite its larger messages.
 
 
-\subsection{Relation to Prior Work}
-\subsubsection{PQ-WireGuard}
+\section{Relation to Prior Work}
+\subsection{PQ-WireGuard}
 PQ-WireGuard \cite{pqwg} demonstrated that post-quantum key exchange is achievable within WireGuard's packet budget by transmitting only the KEM ephemeral material in-band and distributing the large Classic McEliece static keys out of band. This thesis takes a different approach as ML-KEM's much smaller key and ciphertext sizes make it possible to include all necessary key material directly in the handshake messages without special pre-distribution. The trade-off is that the pure ML-KEM variants exceed the IPv4 budget in the initiation direction, whereas PQ-WireGuard's design does not. However, the per-peer storage cost of ML-KEM is several orders of magnitude lower than that of Classic McEliece, which makes the approach more practical at scale.
 
-\subsubsection{Rosenpass}
+\subsection{Rosenpass}
 Rosenpass \cite{rosenpass} is the most practical deployment option among the related work. It requires no changes to WireGuard's codebase and installs as a sidecar process that runs a separate post-quantum key exchange alongside the classical WireGuard handshake.
 
 The compactness of Rosenpass stems from the same approach as PQ-WireGuard, where the static Classic McEliece key is never transmitted during the handshake, sidestepping the MTU problem entirely while carrying the same large per-peer storage overhead. Its main limitation is that it only provides post-quantum forward secrecy, leaving authentication vulnerable to a quantum adversary running Shor's algorithm. The pure-KEM mode in this thesis addresses this gap by achieving full post-quantum authentication, at the cost of a more invasive code change.
 
-\subsubsection{Rebar}
+\subsection{Rebar}
 Rebar \cite{rebar} is the most direct point of comparison for the pure-KEM variants in this thesis, since both use ML-KEM as their primary building block.
 
 Rebar's formally proven security model that covers entity authentication, denial-of-service resistance, and identity hiding in the computational model is a significant advantage that the informal security arguments of this thesis cannot match. A future production-grade post-quantum WireGuard would likely need to follow the Rebar security model or provide an equivalent formal analysis. Rebar's use of the RKEM construction also allows both handshake messages to fit within the IPv6 budget, a goal that the straightforward ML-KEM integration in this thesis does not achieve.
 
 
-\subsection{Ethics and Sustainability} 
+\section{Ethics and Sustainability} 
 The transition to post-quantum cryptography is fundamentally about protecting the privacy and security of individuals and organizations against future threats. The ``harvest now, decrypt later'' model means that inaction today has real consequences for people whose communications are being collected and stored. At the same time, deploying new cryptographic primitives that have not yet received the same decades of scrutiny as classical schemes carries its own risk. The hybrid approach advocated for in this thesis is therefore a way forward: by ensuring that a failure in the post-quantum component does not leave users worse off than before, it provides a safer path through the transition.
 
 From a sustainability perspective, the computational overhead introduced by post-quantum algorithms has energy implications at scale. The modest overhead of ML-KEM observed in this thesis is encouraging in that regard, while the substantially higher cost of HQC serves as a reminder that algorithm selection for post-quantum migration is not only a security and performance decision, but an environmental one.
 
 
-\subsection{Future Research}
+\section{Future Research}
 Several open questions emerged during the making of this thesis.
 
 \textbf{RKEM integration with standardized ML-KEM.} 

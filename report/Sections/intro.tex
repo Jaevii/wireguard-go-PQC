@@ -1,5 +1,3 @@
-\newpage
-\section{Introduction}
 Cryptographic protocols such as Transport Layer Security (TLS), Secure Shell (SSH), and Virtual Private Networks (VPNs) rely on asymmetric cryptography to securely establish shared secrets between previously untrusted parties. These cryptographic systems are based on the assumption that specific mathematical problems, notably integer factorization and discrete logarithms, are too hard for classical computers to solve efficiently.
 
 However, this assumption may not hold in the long term. Rapid advances in quantum computing research suggest that large-scale, fault-tolerant quantum computers may become viable within the coming decades \cite{Swayne2025QuantumRoadmaps}. These are computers capable of leveraging the laws of quantum mechanics to perform quantum algorithms that achieves significant computational speedups for specific classes of problems in comparison to their classical counterparts. Such machines would be able to fundamentally break the asymmetric cryptography primitives used today. 
@@ -22,7 +20,7 @@ Yet, few studies have systematically compared the performance characteristics of
 
 This thesis addresses that gap by designing, implementing, and evaluating a hybrid WireGuard handshake that supports two NIST-selected Key-Encapsulation Mechanisms: ML-KEM and Hamming Quasi-Cyclic. The implementation enables an empirical comparison of their latency, computational overhead, memory usage, and message size, and contrasts the results against existing post-quantum WireGuard implementations. By quantifying these trade-offs, the work aims to provide practical insights into the real-world viability of post-quantum VPNs and contribute to the broader effort of securing Internet communications against future quantum threats.
 
-\subsection{Problem statement and research questions}\label{research_questions}
+\section{Problem statement and Research Questions}\label{research_questions}
 \textit{How does NIST-approved Post-Quantum Key-Encapsulation Mechanisms, specifically ML-KEM and HQC, affect the performance, resource usage, and practical deployability of a post-quantum secure WireGuard handshake compared to existing  approaches?}
 
 \begin{enumerate}[label=\textbf{RQ\arabic*.}]
@@ -39,7 +37,7 @@ This thesis addresses that gap by designing, implementing, and evaluating a hybr
     \item What trade-offs exist between security level and ciphertext size when selecting PQC algorithms for use in WireGuard?
 \end{enumerate}
 
-\subsection{Scope and Limitations} 
+\section{Scope and Limitations} 
 This thesis covers the design, implementation, and empirical evaluation of post-quantum KEM integration into WireGuard's handshake, using ML-KEM and HQC at NIST security levels 3 and 5. The implementation contains both a hybrid mode, which augments the classical handshake with an additional KEM operation, and a pure-KEM mode, which replaces the classical exchange entirely, are implemented and benchmarked. 
 
 Several limitations apply to this work. The implementation is built using \texttt{wireguard-go}, the userspace Go implementation of WireGuard, and does not modify the Linux kernel module. Performance numbers from the kernel implementation would be better due to the absence of TUN interface overhead, so the results here should not be taken as representative of a future kernel-level deployment. 
@@ -51,7 +49,7 @@ The benchmark environment uses a virtual network on a single physical host, whic
 The security analysis of the hybrid and pure-KEM handshake constructions is informal. No formal verification or symbolic proof is provided, and the security arguments in this thesis are based on design reasoning rather than machine-checked proofs. This is consistent with the scope of the related work that this thesis builds on, but it means the security claims are weaker than those of formally analyzed designs.
 
 
-\subsection{Thesis Structure} 
+\section{Thesis Structure} 
 The remainder of this thesis is structured as follows.
 
 Section 2 provides the necessary background. It begins with classical cryptography, covering classical public-key primitives such as RSA, Diffie-Hellman, and elliptic-curve cryptography, along with key concepts such as key exchange and key encapsulation mechanisms. It then introduces the quantum threat, including a high-level overview of quantum computing and the algorithms that break classical cryptography: Shor's and Grover's algorithms, as well as the ``harvest now, decrypt later'' risk model. Finally, it introduces post-quantum cryptography, covering the main algorithm families with a focus on ML-KEM and HQC, and discusses hybrid cryptographic approaches and the practical challenges of deploying PQC in real protocols. 

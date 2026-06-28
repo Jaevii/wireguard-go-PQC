@@ -1,86 +1,73 @@
-%----------------------------------------
-%               Essential    
-%----------------------------------------
-\documentclass[12pt]{article}
-\input{Essential/Packages.tex}
-\input{Essential/Title.tex}
+%-------------------------------------------------------------------
+% Document class and package definitions
+%-------------------------------------------------------------------
+\documentclass[12pt,a4paper,openright,final,twoside]{Essential/cseethesis}
 
-\usepackage{fancyhdr}
-\usepackage{parskip}
-\usepackage{booktabs}
-\usepackage{enumitem}
-\usepackage[table]{xcolor} 
-\usepackage{colortbl}
-\usepackage{array}
-\usepackage{eurosym}
-\usepackage{multirow}
-\usepackage{listings}
-\usepackage{bytefield}
-\usepackage{xcolor}
-
-% Color definitions
-\definecolor{fieldgray}{gray}{0.85}
-\definecolor{fieldblue}{RGB}{180,210,240}
-\definecolor{fieldgreen}{RGB}{180,230,200}
-\definecolor{fieldyellow}{RGB}{255,240,180}
-
-\newcommand{\colorbitbox}[3]{%
-  \colorbox{#1}{\bitbox{#2}{#3}}%
-}
-
-\DeclareUnicodeCharacter{20AC}{\euro}
-
-\makeglossaries
-\input{Essential/GlossaryEntries.tex}
+%Included for Gather Purpose only:
+%input "thesisreferences.bib"
 
 \begin{document}
-\input{Essential/Style}
-\restoregeometry
-\tolerance=2000
+%-------------------------------------------------------------------
+% Define title, author, etc.
+%-------------------------------------------------------------------
+\def\thesistitle{Evaluating Post-Quantum Key Exchange in WireGuard }
+
+\def\theauthor{Ludvig Järvi}
+\def\theaddress{Dept.\ of Computer Science, Electrical and Space Engineering\\
+Lule{\aa} University of Technology\\ Lule{\aa}, Sweden}
+
+\def\supervisors{    Karl Andersson (LTU, Academic Supervisor) \\
+    John Lindström (LTU, Academic Supervisor) \\
+    Jonas Olson (eCiceron, Internal Supervisor)}
+\def\supervisorstring{Supervisors:} % Edit here if you have only one supervisor
+
+% Read abstract and preface from separate files.
+% Make sure these exist. See example files.
+\def\theabstract{\input{Sections/abstract}}
+\def\thepreface{\input{Sections/preface}}
+
+
+% The definitions above could be put directly in the function call below,
+% but is here defined explicitly, for the purpose of clarity.
+
+\startpreamble
+  {\thesistitle}
+  {\theauthor}
+  {\theaddress}
+  {\supervisors}
+  {\thepreface} 
+  {\theabstract}
+
+%% Initialize part containing the thesis introduction chapters
+\startchapters
 \pagestyle{fancy}
-\setlength{\headheight}{15.5pt}
-\fancyfoot[C]{\thepage}
-\fancyhead[LH]{}
-\pagenumbering{roman}
-\setcounter{page}{1}
-\def\sectionautorefname{Avsnitt}
-\def\subsectionautorefname{Underavsnitt}
-\def\subsubsectionautorefname{Under-underavsnitt}
-\def\partautorefname{Del}
 
-%-----------------------------------------
-%                Sections
-%-----------------------------------------
-% Skriv direkt i filerna i /Sections/...
-% Ändra nedanstående kod vid behov.
-%-----------------------------------------
-\input{Sections/acknowledgements}
+\makeacronyms{\input{Sections/acronyms}}
 
-\begin{abstract}
-    \input{Sections/abstract}
-\end{abstract}
-
-\clearpage
-\tableofcontents
-\hypersetup{linkcolor=royalblue}
-
-\input{Sections/glossary}
-
-\clearpage
-\pagenumbering{arabic}
-
+\makechapter[]{Introduction}{Introduction}{Introduction\label{ch1}}
 \input{Sections/intro}
+
+\makechapter[]{Background}{Background}{Background\label{ch2}}
 \input{Sections/background}
+
+\makechapter[]{WireGuard}{WireGuard}{WireGuard\label{ch3}}
 \input{Sections/wireguard}
+
+\makechapter[]{Related Work}{Related Work}{Related Work\label{ch4}}
 \input{Sections/related_work}
+
+\makechapter[]{Method}{Method}{Method\label{ch5}}
 \input{Sections/method}
+
+\makechapter[]{Results}{Results}{Results\label{ch6}}
 \input{Sections/results}
+
+\makechapter[]{Discussion}{Discussion}{Discussion\label{ch7}}
 \input{Sections/discussion}
+
+\makechapter[]{Conclusion}{Conclusion}{Conclusion\label{ch8}}
 \input{Sections/conclusion}
 
-\newpage
 \printbibliography
-
-\glsaddallunused
 
 \end{document}
