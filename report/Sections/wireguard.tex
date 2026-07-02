@@ -77,7 +77,7 @@ Noise supports an optional Pre-Shared symmetric Key (PSK) that when included, is
 WireGuard exposes this parameter directly in its configuration. By default it is unused, but it can be set to inject an externally derived secret into the handshake. Out-of-band PQC solutions such as Rosenpass, discussed further in Chapter \ref{ch4}, perform a separate post-quantum key exchange and inject the resulting secret into WireGuard's PSK field, protecting session confidentiality even if the classical DH is later broken by a quantum computer.
 
 \section{Cryptographic Primitives}
-As mentioned in the beginning of this section, WireGuard is very opinionated about which cryptographic primitives it utilizes. This is a deliberate design choice as the ability to offer multiple algorithms at runtime, has historically been a source of downgrade attacks and misconfiguration vulnerabilities in protocols such as TLS and IPsec \cite{Downgrade}. By removing the choice entirely, WireGuard eliminates this attack surface.
+As mentioned in the beginning of this chapter, WireGuard is very opinionated about which cryptographic primitives it utilizes. This is a deliberate design choice as the ability to offer multiple algorithms at runtime, has historically been a source of downgrade attacks and misconfiguration vulnerabilities in protocols such as TLS and IPsec \cite{Downgrade}. By removing the choice entirely, WireGuard eliminates this attack surface.
 
 WireGuard currently uses the following set of modern cryptographic primitives:
 \begin{itemize}

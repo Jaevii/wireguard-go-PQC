@@ -1,5 +1,5 @@
 
-This section presents the empirical results from the benchmark as described in Section \ref{sec:measurement}. The results cover handshake latency, message sizes, and memory footprint for each of the nine evaluated variants: classical WireGuard, four ML-KEM variants (hybrid and pure, at NIST security levels 3 and 5), and four HQC variants (hybrid and pure, at NIST security levels 3 and 5). The results are then used to answer the research questions posed in Section \ref{research_questions} and to draw comparisons with the related work.
+This chapter presents the empirical results from the benchmark as described in Section \ref{sec:measurement}. The results cover handshake latency, message sizes, and memory footprint for each of the nine evaluated variants: classical WireGuard, four ML-KEM variants (hybrid and pure, at NIST security levels 3 and 5), and four HQC variants (hybrid and pure, at NIST security levels 3 and 5). The results are then used to answer the research questions posed in Section \ref{research_questions} and to draw comparisons with the related work.
 
 \section{Benchmark Metrics}
 
@@ -80,6 +80,7 @@ found in the benchmark setup. As noted in Section \ref{sec:benchmark}, AES-NI ha
 On hardware without Single Instruction, Multiple Data (SIMD) support, such as embedded processors or older CPUs, the result would likely be quite different. The performance advantage of pure ML-KEM over the classical handshake is therefore specific to this instance of hardware and should not be taken as a general expectation.
 
 The hybrid ML-KEM variants, however, are slower than both the classical handshake and the pure-KEM variants. Hybrid-MLKEM-768 has a mean of \qty{2.228}{ms} and Hybrid-MLKEM-1024 has a mean of \qty{2.374}{ms}, representing handshakes approximately 22\% and 30\% slower the classical baseline respectively. This is expected since the hybrid mode keeps all the existing DH operations from the classical handshake and adds a full KEM encapsulation and decapsulation on top.
+
 \subsection{HQC}
 The HQC results are in a completely different performance category. Pure-HQC-192 has a mean handshake time of \qty{364}{ms} and Pure-HQC-256 even reaches as high as \qty{668}{ms}. The hybrid variants are faster but still far outside any acceptable range, Hybrid-HQC-192 takes \qty{202}{ms} and Hybrid-HQC-256 takes \qty{366}{ms}.
 
@@ -215,7 +216,7 @@ A direct latency comparison with Table \ref{tab:LatencyPercentiles} is not meani
 Rebar \cite{rebar} was benchmarked with \qty{30.9}{ms} of added artificial latency and reports a handshake time of approximately \qty{36.9}{ms} for the initiator, compared to \qty{33.6}{ms} for classical WireGuard in the same environment. Its initiation and response messages are \qty{1052}{bytes} and \qty{1088}{bytes} respectively, fitting within the \qty{1232}{byte} IPv6 budget that none of the pure-KEM variants in this thesis achieve.
 
 \section{Research Questions}\label{sec:results-rq} 
-This subsection revisits the research questions posed in Section \ref{research_questions} and answers each one using the results presented above. The goal is to translate the concrete benchmark findings into conclusions about the performance, resource requirements, and practical deployability of ML-KEM and HQC as post-quantum replacements for the classical WireGuard handshake.
+This section revisits the research questions posed in Section \ref{research_questions} and answers each one using the results presented above. The goal is to translate the concrete benchmark findings into conclusions about the performance, resource requirements, and practical deployability of ML-KEM and HQC as post-quantum replacements for the classical WireGuard handshake.
 
 \textbf{RQ1: How do NIST-selected post-quantum key encapsulation mechanisms, specifically ML-KEM and HQC, affect the performance of a WireGuard handshake?}
 
