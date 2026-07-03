@@ -192,7 +192,7 @@ Each peer entry stores a 32-byte Curve25519 static public key. This stays the sa
 \hline
 Classic / Hybrid  & \qty{32}{B}   & \qty{3.1}{kB}  & \qty{313}{kB}   & \qty{3.1}{MB}  \\
 Pure-MLKEM-768    & \qty{1184}{B} & \qty{115}{kB}  & \qty{11.3}{MB}  & \qty{113}{MB}   \\
-Pure-MLKEM-1024   & \qty{1568}{B} & \qty{153}{kB}  & \qty{15.0}{MB}  & \qty{153}{MB}   \\
+Pure-MLKEM-1024   & \qty{1568}{B} & \qty{157}{kB}  & \qty{15.0}{MB}  & \qty{156.8}{MB}   \\
 Pure-HQC-192      & \qty{4522}{B} & \qty{442}{kB}  & \qty{43.2}{MB}  & \qty{432}{MB}   \\
 Pure-HQC-256      & \qty{7245}{B} & \qty{708}{kB}  & \qty{69.1}{MB}  & \qty{691}{MB}   \\
 \hline
@@ -210,10 +210,10 @@ Table \ref{tab:StaticStorage} shows that at small peer counts the choice of algo
 Hülsing et al.\ report a client-side handshake time of around \qty{1.0}{ms} over a virtual \qty{10}{Gbps} link with no added latency \cite{pqwg}, which is in the same order of magnitude as the pure ML-KEM variants in Table \ref{tab:LatencyPercentiles}. PQ-WireGuard fits both handshake messages within the \qty{1472}{byte} IPv4 budget, which the pure ML-KEM variants in this thesis do not achieve, as shown in Table \ref{tab:Fragments}. The Classic McEliece parameter set used produces a static public key of \qty{512}{KB}, which, at \num{10000} peers amounts to approximately \qty{5}{GB} for the peer table, compared to roughly \qty{11}{MB} for pure ML-KEM-768 at the same scale (cf. Table \ref{tab:StaticStorage}).
 
 \subsection{Rosenpass}
-A direct latency comparison with Table \ref{tab:LatencyPercentiles} is not meaningful for Rosenpass \cite{rosenpass}, since it operates as a separate sidecar process whose cryptographic cost must be added to WireGuard's handshake time. Rosenpass fits both its InitHello and RespHello messages within a single IPv6 packet. Out of the variants in this thesis, only Hybrid-MLKEM-768 achieves a comparable result, and only under IPv4 (Table~\ref{tab:Fragments}).
+A direct latency comparison with Table \ref{tab:LatencyPercentiles} is not meaningful for Rosenpass \cite{rosenpass}, since it operates as a separate sidecar process whose cryptographic cost must be added to WireGuard's handshake time. Rosenpass fits both its InitHello and RespHello messages within a single IPv4 packet. Out of the variants in this thesis, only Hybrid-MLKEM-768 achieves a comparable result (Table~\ref{tab:Fragments}).
 
 \subsection{Rebar}
-Rebar \cite{rebar} was benchmarked with \qty{30.9}{ms} of added artificial latency and reports a handshake time of approximately \qty{36.9}{ms} for the initiator, compared to \qty{33.6}{ms} for classical WireGuard in the same environment. Its initiation and response messages are \qty{1052}{bytes} and \qty{1088}{bytes} respectively, fitting within the \qty{1232}{byte} IPv6 budget that none of the pure-KEM variants in this thesis achieve.
+Rebar \cite{rebar} was benchmarked with \qty{30.9}{ms} of added artificial latency and reports a handshake time of approximately \qty{36.9}{ms} for the initiator, compared to \qty{33.6}{ms} for classical WireGuard in the same environment. Its initiation and response messages are \qty{1052}{bytes} and \qty{1088}{bytes} respectively, fitting within the \qty{1472}{byte} IPv4 budget that none of the pure-KEM variants in this thesis achieve.
 
 \section{Research Questions}\label{sec:results-rq} 
 This section revisits the research questions posed in Section \ref{research_questions} and answers each one using the results presented above. The goal is to translate the concrete benchmark findings into conclusions about the performance, resource requirements, and practical deployability of ML-KEM and HQC as post-quantum replacements for the classical WireGuard handshake.
@@ -236,7 +236,7 @@ The hybrid approach preserves classical security as a fallback and provides post
 
 \textbf{RQ5: How does a hybrid WireGuard implementation using ML-KEM and HQC compare to existing post-quantum solutions in terms of performance and practical deployment?}
 
-Compared to Rosenpass, the in-handshake integration in this thesis completes post-quantum key establishment within a single WireGuard handshake rather than requiring a separate process, and the pure-KEM variants achieve full post-quantum authentication that Rosenpass does not provide. The cost is a higher deployment barrier, since the integration requires modifying WireGuard's codebase, and larger initiation messages compared to Rosenpass as shown in Table \ref{tab:Results}. Compared to PQ-WireGuard and Rebar, the pure ML-KEM variants produce larger messages that exceed the IPv6 budget, but offer a significantly lower per-peer storage requirement as shown in Table \ref{tab:StaticStorage}.
+Compared to Rosenpass, the in-handshake integration in this thesis completes post-quantum key establishment within a single WireGuard handshake rather than requiring a separate process, and the pure-KEM variants achieve full post-quantum authentication that Rosenpass does not provide. The cost is a higher deployment barrier, since the integration requires modifying WireGuard's codebase, and larger initiation messages compared to Rosenpass as shown in Table \ref{tab:Results}. Compared to PQ-WireGuard and Rebar, the pure ML-KEM variants produce larger messages that exceed the IPv4 budget, but offer a significantly lower per-peer storage requirement.
 
 \textbf{RQ6: What trade-offs exist between security level and ciphertext size when selecting PQC algorithms for use in WireGuard?}
 
