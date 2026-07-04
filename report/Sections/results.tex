@@ -44,7 +44,7 @@ Table \ref{tab:Results} reports four values for each variant. The \textbf{Initia
 \label{tab:Results}
 \end{table}
 
-
+\newpage
 \section{Handshake Latency}\label{sec:results-latency}
 
 Table \ref{tab:LatencyPercentiles} breaks down handshake latency into mean and tail percentiles to capture both typical performance and worst-case behaviour under the same network conditions.
@@ -81,13 +81,13 @@ On hardware without Single Instruction, Multiple Data (SIMD) support, such as em
 
 The hybrid ML-KEM variants, however, are slower than both the classical handshake and the pure-KEM variants. Hybrid-MLKEM-768 has a mean of \qty{2.228}{ms} and Hybrid-MLKEM-1024 has a mean of \qty{2.374}{ms}, representing handshakes approximately 22\% and 30\% slower the classical baseline respectively. This is expected since the hybrid mode keeps all the existing DH operations from the classical handshake and adds a full KEM encapsulation and decapsulation on top.
 
-\subsection{HQC}
-The HQC results are in a completely different performance category. Pure-HQC-192 has a mean handshake time of \qty{364}{ms} and Pure-HQC-256 even reaches as high as \qty{668}{ms}. The hybrid variants are faster but still far outside any acceptable range, Hybrid-HQC-192 takes \qty{202}{ms} and Hybrid-HQC-256 takes \qty{366}{ms}.
 
-The main cause of this latency is not HQC's computational cost but the IP fragmentation and software reassembly forced by its large message sizes. HQC's public keys and ciphertexts are large enough that every HQC handshake message must be split into multiple IP fragments before transmission. As described in Section \ref{sec:benchmark}, the virtual network path in this benchmark handles fragmentation and reassembly entirely in software, without hardware offloading. The operating system must buffer all incoming fragments, wait for the final fragment to arrive, and then reassemble the complete datagram before WireGuard can begin processing the message. This reassembly overhead grows with the number of fragments and is the primary driver of the observed latencies, which is consistent with the fragment counts discussed in Section \ref{sec:results-fragmentation}. 
+\subsection{HQC} 
+The HQC results are in a completely different performance category. Pure-HQC-192 has a mean handshake time of \qty{364}{ms} and Pure-HQC-256 even reaches as high as \qty{668}{ms}. The hybrid variants are faster but still far outside any acceptable range: Hybrid-HQC-192 takes \qty{202}{ms} and Hybrid-HQC-256 takes \qty{366}{ms}. 
 
-The standard deviations shown in Table \ref{tab:Results} for the HQC variants further support this notion. Pure-HQC-192 has a high standard deviation of \qty{14.3}{ms} and Pure-HQC-256 has \qty{23.5}{ms}, compared to the low standard deviation of less than \qty{0.35}{ms} for all ML-KEM variants.
+The main cause of this latency is not HQC's computational cost but the IP fragmentation and software reassembly forced by its large message sizes. HQC's public keys and ciphertexts are large enough that every HQC handshake message must be split into multiple IP fragments before transmission. As described in Section \ref{sec:benchmark}, the virtual network path in this benchmark handles fragmentation and reassembly entirely in software, without hardware offloading. The operating system must buffer all incoming fragments, wait for the final fragment to arrive, and then reassemble the complete datagram before WireGuard can begin processing the message. This reassembly overhead grows with the number of fragments and is the primary driver of the observed latencies, consistent with the fragment counts discussed in Section \ref{sec:results-fragmentation}. 
 
+The standard deviations shown in Table \ref{tab:Results} for the HQC variants further support this explanation. Pure-HQC-192 has a high standard deviation of \qty{14.3}{ms} and Pure-HQC-256 has \qty{23.5}{ms}, compared to a standard deviation of less than \qty{0.35}{ms} for all ML-KEM variants. Key generation, encapsulation, and decapsulation complete in a consistent amount of time and are executed locally, so if these operations dominated the total handshake time, all variants would show similarly low variance regardless of message size, as is the case for ML-KEM. The elevated variance in HQC instead reflects the reassembly process itself: because reassembly cannot complete until the last fragment arrives, its duration is subject to per-fragment scheduling and arrival jitter that accumulates as fragment count increases. This is consistent with Pure-HQC-256 requiring more fragments than Pure-HQC-192 and correspondingly showing higher standard deviation, reinforcing that reassembly overhead, rather than KEM computation, is the dominant contributor to the observed latency.
 
 \section{Message Size}
 Table \ref{tab:Results} shows a large variance in the message sizes across the nine variants. To understand where these sizes come from, it helps to look at the individual fields that make up each message.
@@ -207,7 +207,7 @@ Table \ref{tab:StaticStorage} shows that at small peer counts the choice of algo
 \section{Comparisons With Related Work}\label{sec:results-comparisons}
 
 \subsection{PQ-WireGuard}
-Hülsing et al.\ report a client-side handshake time of around \qty{1.0}{ms} over a virtual \qty{10}{Gbps} link with no added latency \cite{pqwg}, which is in the same order of magnitude as the pure ML-KEM variants in Table \ref{tab:LatencyPercentiles}. PQ-WireGuard fits both handshake messages within the \qty{1472}{byte} IPv4 budget, which the pure ML-KEM variants in this thesis do not achieve, as shown in Table \ref{tab:Fragments}. The Classic McEliece parameter set used produces a static public key of \qty{512}{KB}, which, at \num{10000} peers amounts to approximately \qty{5}{GB} for the peer table, compared to roughly \qty{11}{MB} for pure ML-KEM-768 at the same scale (cf. Table \ref{tab:StaticStorage}).
+Hülsing et al.\ report a client-side handshake time of around \qty{1.0}{ms} over a virtual \qty{10}{Gbps} link with no added latency \cite{pqwg}, which is in the same order of magnitude as the pure ML-KEM variants in Table \ref{tab:LatencyPercentiles}. PQ-WireGuard fits both handshake messages within the \qty{1232}{byte} IPv6 budget, which the pure ML-KEM variants in this thesis do not achieve, as shown in Table \ref{tab:Fragments}. The Classic McEliece parameter set used produces a static public key of \qty{512}{KB}, which, at \num{10000} peers amounts to approximately \qty{5}{GB} for the peer table, compared to roughly \qty{11}{MB} for pure ML-KEM-768 at the same scale (cf. Table \ref{tab:StaticStorage}).
 
 \subsection{Rosenpass}
 A direct latency comparison with Table \ref{tab:LatencyPercentiles} is not meaningful for Rosenpass \cite{rosenpass}, since it operates as a separate sidecar process whose cryptographic cost must be added to WireGuard's handshake time. Rosenpass fits both its InitHello and RespHello messages within a single IPv4 packet. Out of the variants in this thesis, only Hybrid-MLKEM-768 achieves a comparable result (Table~\ref{tab:Fragments}).
@@ -224,7 +224,9 @@ As shown in Table \ref{tab:LatencyPercentiles}, ML-KEM improves handshake perfor
 
 \textbf{RQ2: What impact do ML-KEM and HQC have on resource usage in WireGuard, particularly in terms of message size and storage requirements?}
 
-ML-KEM increases message sizes significantly in the pure-KEM mode, as shown in Table \ref{tab:Results}, but the hybrid ML-KEM-768 variant fits within a single IPv4 packet in both directions. Per-peer static key storage for the pure ML-KEM variants, shown in Table \ref{tab:StaticStorage}, grows substantially compared to the classical case but remains manageable at realistic deployment scales. The HQC variants produce significantly larger messages and requires a far greater storage capacity at all parameters.
+ML-KEM increases message sizes significantly in the pure-KEM mode, as shown in Table \ref{tab:Results}, but the hybrid ML-KEM-768 variant fits within a single IPv4 packet in both directions. Per-peer static key storage for the pure ML-KEM variants, shown in Table \ref{tab:StaticStorage}, grows substantially compared to the classical case but remains manageable at realistic deployment scales. The HQC variants produce significantly larger messages and require greater storage capacity at all parameters. 
+
+This storage overhead is modest next to Classic McEliece-based approaches such as PQ-WireGuard, whose \qty{512}{KB} static keys impose a per-peer storage burden one to two-and-a-half orders of magnitude larger than the pure KEM variants of this thesis (cf. Section \ref{sec:results-comparisons}).
 
 \textbf{RQ3: To what extent can ML-KEM and HQC be integrated into WireGuard without violating its core design principles, such as low latency and small handshake size?}
 
@@ -236,7 +238,7 @@ The hybrid approach preserves classical security as a fallback and provides post
 
 \textbf{RQ5: How does a hybrid WireGuard implementation using ML-KEM and HQC compare to existing post-quantum solutions in terms of performance and practical deployment?}
 
-Compared to Rosenpass, the in-handshake integration in this thesis completes post-quantum key establishment within a single WireGuard handshake rather than requiring a separate process, and the pure-KEM variants achieve full post-quantum authentication that Rosenpass does not provide. The cost is a higher deployment barrier, since the integration requires modifying WireGuard's codebase, and larger initiation messages compared to Rosenpass as shown in Table \ref{tab:Results}. Compared to PQ-WireGuard and Rebar, the pure ML-KEM variants produce larger messages that exceed the IPv4 budget, but offer a significantly lower per-peer storage requirement.
+Compared to Rosenpass, the in-handshake integration in this thesis completes post-quantum key establishment within a single WireGuard handshake rather than requiring a separate process, and the pure-KEM variants achieve full post-quantum authentication that Rosenpass does not provide. The cost is a higher deployment barrier, since the integration requires modifying WireGuard's codebase, and larger initiation messages compared to Rosenpass.
 
 \textbf{RQ6: What trade-offs exist between security level and ciphertext size when selecting PQC algorithms for use in WireGuard?}
 

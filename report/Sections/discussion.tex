@@ -32,7 +32,11 @@ So, for operators whose primary concern is data confidentiality under the HNDL t
 
 \section{Relation to Prior Work}
 \subsection{PQ-WireGuard}
-PQ-WireGuard \cite{pqwg} demonstrated that post-quantum key exchange is achievable within WireGuard's packet budget by transmitting only the KEM ephemeral material in-band and distributing the large Classic McEliece static keys out of band. This thesis takes a different approach as ML-KEM's much smaller key and ciphertext sizes make it possible to include all necessary key material directly in the handshake messages without special pre-distribution. The trade-off is that the pure ML-KEM variants exceed the IPv4 budget in the initiation direction, whereas PQ-WireGuard's design does not. However, the per-peer storage cost of ML-KEM is several orders of magnitude lower than that of Classic McEliece, which makes the approach more practical at scale.
+PQ-WireGuard \cite{pqwg} demonstrated that post-quantum key exchange is achievable within WireGuard's packet budget by transmitting the ephemeral KEM material in-band while distributing the large Classic McEliece static keys out of band. 
+
+This comes at a substantial storage cost: each peer's huge McEliece static public key must be stored for every configured peer, which scales poorly as deployments grow. This thesis's approach differs in that both the ML-KEM and HQC key material are small enough that the same storage-per-peer concern does not arise; the per-peer storage cost is several orders of magnitude lower than that of Classic McEliece, making this approach considerably more practical at scale. 
+
+The trade-off is bandwidth rather than storage: the pure KEM variants still exceed the IPv4 packet budget, whereas PQ-WireGuard's design, with its small in-band ciphertexts and keys, does not.
 
 \subsection{Rosenpass}
 Rosenpass \cite{rosenpass} is the most practical deployment option among the related work. It requires no changes to WireGuard's codebase and installs as a sidecar process that runs a separate post-quantum key exchange alongside the classical WireGuard handshake.
@@ -54,14 +58,15 @@ From a sustainability perspective, the computational overhead introduced by post
 \section{Future Research}
 Several open questions emerged during the making of this thesis.
 
-\textbf{RKEM integration with standardized ML-KEM.} 
-Rebar demonstrates that the RKEM construction can reduce handshake message sizes to within the IPv6 budget \cite{rebar}. An empirical implementation and benchmark of the RKEM construction using the finalized FIPS 203 ML-KEM specification would quantify the latency and complexity cost of this optimization relative to the straightforward ML-KEM integration evaluated here.
+\textbf{RKEM integration with standardized ML-KEM.} \\ Rebar demonstrates that the RKEM construction can reduce handshake message sizes to within the IPv6 budget \cite{rebar}. An empirical implementation and benchmark of the RKEM construction using the finalized FIPS 203 ML-KEM specification would quantify the latency and complexity cost of this optimization relative to the straightforward ML-KEM integration evaluated here.
 
-\textbf{Kernel module integration.} 
+\textbf{Kernel module integration.}\\
 This thesis is built on \texttt{wireguard-go}, which carries TUN interface overhead that is absent in the kernel module. A kernel-level PQC integration using the Linux kernel's native crypto API and liboqs-kernel bindings would produce performance figures more representative of production deployment, and would be necessary for eventual upstream inclusion.
 
-\textbf{HQC after standardization.}
-HQC's draft standard is expected in early 2026 and its final standard in 2027 \cite{Moody2025NISTIR8545}. The finalization process may produce optimized implementations that reduce the algorithm's computational overhead. It would be worth re-evaluating HQC once such implementations are available, particularly in the context of emerging KEM designs that might achieve smaller ciphertext sizes for equivalent security levels.
+\textbf{HQC after standardization.}\\
+HQC's draft standard is expected in early 2026 and its final standard in 2027 \cite{Moody2025NISTIR8545}. However, HQC's large public key and ciphertext sizes stem from the ciphertext-expansion characteristics inherent to quasi-cyclic code-based cryptography, not from an unoptimized implementation. Consequently, further standardization is not expected to bring HQC's message sizes within WireGuard's single-packet MTU constraints. 
 
-\textbf{Post-quantum authentication migration paths.}
+Future work could therefore explore protocol-level accommodation, such as extending WireGuard-style handshakes to support fragmentation across multiple packets, enabling HQC's use despite its size.
+
+\textbf{Post-quantum authentication migration paths.}\\
 The hybrid and pure-KEM modes represent two different points on the migration timeline, but the transition between them in a deployed network would require operators to distribute new static KEM public keys to all peers before switching from hybrid to pure-KEM mode. Research into key distribution protocols, backwards-compatible negotiation mechanisms, and migration tooling would be needed to make this transition practical at scale.

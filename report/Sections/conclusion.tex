@@ -1,21 +1,17 @@
 
 This thesis set out to answer how NIST-approved post-quantum key encapsulation mechanisms, specifically ML-KEM and HQC, affect the performance, resource usage, and practical deployability of a post-quantum secure WireGuard handshake. And after much research, the answer is quite clear.
 
-\textbf{ML-KEM integrates well.}
-
+\textbf{ML-KEM integrates well.}\\
 The hybrid ML-KEM-768 variant is the most immediately deployable result of this work. It augments the existing Curve25519 exchange with a single KEM operation, fits within a single IPv4 packet in both message directions, and adds approximately 22\% to the handshake time on tested hardware, which, when talking milliseconds, is a small price to pay for the security benefits it brings. Furthermore, the hybrid implementation produces per-peer storage requirements that are manageable at realistic deployment scales, resolving the principal practical limitation of PQ-WireGuard's Classic McEliece approach.
 
-\textbf{HQC is not suitable for WireGuard in its current form.}
+\textbf{HQC is not suitable for WireGuard in its current form.}\\
+The fundamental problem is not computational performance but message size. HQC ciphertexts are large enough to force up to 30 IP fragments per handshake, producing mean latencies of 200 to 670 ms that place every HQC variant far outside the performance criteria that makes WireGuard valuable.
 
-The fundamental problem is not computational performance but message size. HQC ciphertexts are large enough to force up to 30 IP fragments per handshake, producing mean latencies of 200 to 670 ms that place every HQC variant far outside the performance criteria that makes WireGuard valuable. This may change as NIST's standardization process produces more optimized implementations, but in its current form HQC is incompatible with WireGuard's MTU-constrained design.
-
-\textbf{The MTU constraint remains the defining challenge.}
-
+\textbf{The MTU constraint remains the defining challenge.}\\
 Only Hybrid-MLKEM-768 satisfies WireGuard's single-packet design assumption, while the other KEM variants required fragmentation. Prior work by Hashimoto et al. demonstrates that the RKEM construction can fit two ML-KEM operations within the IPv6 budget by exploiting the algebraic structure internal to the algorithm. But until such optimizations are standardized, the MTU constraint remains a hard ceiling that algorithm selection alone cannot overcome.
 
-\textbf{The HNDL threat is addressable today.}
-
-The regulatory deadlines under CNSA 2.0 and the European Commission: mandatory PQC transition by 2026, full transition by 2030, are within reach using the hybrid approach described in this thesis. Operators can deploy the hybrid mode today to gain confidentiality protection against future quantum adversaries without replacing existing static key infrastructure.
+\textbf{The HNDL threat is addressable today.}\\
+The regulatory deadlines are within reach using the hybrid approach described in this thesis. Under CNSA 2.0, networking equipment such as VPNs is expected to support and prefer post-quantum algorithms by 2026, with exclusive use mandated by 2030 \cite{NSA2022CNSA2}. The European Commission's coordinated roadmap similarly targets the start of transition by the end of 2026, with protection of critical infrastructure by the end of 2030 \cite{EUPQC2025Roadmap}. Operators can deploy the hybrid mode today to gain confidentiality protection against future quantum adversaries without replacing existing static key infrastructure.
 
 The urgency of the post-quantum transition is real. Traffic protected by classical key exchange today is already at risk under the ``harvest now, decrypt later'' model, and the window for an orderly migration is narrowing. The main remaining challenge is not computational but practical: deploying these changes across a fragmented ecosystem of implementations and VPN services.
  
