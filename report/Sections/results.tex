@@ -5,6 +5,8 @@ This chapter presents the empirical results from the benchmark as described in S
 
 Table \ref{tab:Results} reports four values for each variant. The \textbf{Initial} and \textbf{Response} columns give the on-wire message sizes in bytes. The \textbf{Baseline RTT} is the mean round-trip time of five consecutive pings on an already-established session, representing pure network overhead with no handshake, with its standard deviation shown in parentheses. The \textbf{Handshake Time} is the mean baseline-subtracted RTT over 5000 trials, with its standard deviation in parentheses. The baseline RTT is consistent at approximately \qty{0.5}{ms} across all nine variants, which confirms that the underlying virtual network conditions did not change between runs and that differences in handshake time reflect cryptographic overhead rather than measurement noise.
 
+\newpage
+\vspace*{3cm}
 \begin{table}[H]
 \centering
 \begin{tabular}{|l|rrrr|}
@@ -73,11 +75,15 @@ Hybrid-HQC-256     & 365.557 & 366.525 & 388.525 & 402.361 \\
 \subsection{ML-KEM}
 A surprising result in the latency data shown in Table \ref{tab:LatencyPercentiles} was that both pure ML-KEM variants had a faster handshake time than classical WireGuard across all measurements. Pure-MLKEM-768 is approximately 36\% faster, and Pure-MLKEM-1024 about 21\% faster. 
 
-This result seems counterintuitive at first as a handshake with larger messages should not be faster than the optimized classical baseline, but the explanation is 
+This result seems counterintuitive at first, as a handshake with larger messages is not expected to be faster than the classical baseline. The exact cause of this advantage cannot be isolated with certainty from the total handshake time measured in this benchmark. Two possible explanations are considered below.
 
-found in the benchmark setup. As noted in Section \ref{sec:benchmark}, AES-NI hardware acceleration was available in the virtual machines and used during the benchmark. ML-KEM uses AES-256 in counter mode as an extendable output function during key generation, which maps directly onto AES-NI instructions. The classical X25519 key exchange is based on elliptic-curve arithmetic that receives no benefit from AES-NI, instead relying on general-purpose integer multiply instructions. On this hardware, ML-KEM's encapsulation and decapsulation are therefore faster than the X25519's scalar multiplication, which is why removing the DH operations with KEM operations reduces the total computation time despite the larger message sizes.
+The first is algorithmic: Although both algorithms operate on fixed-size inputs, their computational structure differs substantially. ML-KEM primarily performs arithmetic on small polynomial coefficients using Number-Theoretic Transforms (NTT) \cite{mlkem}, whereas X25519 performs a constant-time Montgomery ladder over a 255-bit prime field \cite{rfc7748}. Because of this, ML-KEM might simply have a lower computational cost in this implementation than X25519. Furthermore, ML-KEM's computations contain more independent arithmetic operations, while the Montgomery ladder used by X25519 has long chains of data dependencies. On modern superscalar processors, workloads with greater instruction-level parallelism can execute more efficiently.
 
-On hardware without Single Instruction, Multiple Data (SIMD) support, such as embedded processors or older CPUs, the result would likely be quite different. The performance advantage of pure ML-KEM over the classical handshake is therefore specific to this instance of hardware and should not be taken as a general expectation.
+The second is implementation-related: The ML-KEM implementation from liboqs is written in C, whereas X25519 is implemented using Go's cryptographic library. Differences in programming language, compiler optimizations, and implementation strategies could have influenced performance independently of the underlying algorithms.
+
+Distinguishing between these explanations, or quantifying each one's contribution, would require isolating pure cryptographic computation time from network and reassembly overhead through dedicated microbenchmarks, which falls outside the scope of this thesis. 
+
+Neither implementation benefited from AVX2 acceleration in this benchmark as the VMs CPUs did not support it. Both algorithms therefore ran in their portable, non-accelerated form, and the result should not be assumed to hold on hardware where either implementation could use an AVX2-optimized code path instead.
 
 The hybrid ML-KEM variants, however, are slower than both the classical handshake and the pure-KEM variants. Hybrid-MLKEM-768 has a mean of \qty{2.228}{ms} and Hybrid-MLKEM-1024 has a mean of \qty{2.374}{ms}, representing handshakes approximately 22\% and 30\% slower the classical baseline respectively. This is expected since the hybrid mode keeps all the existing DH operations from the classical handshake and adds a full KEM encapsulation and decapsulation on top.
 
@@ -181,6 +187,7 @@ Among the benchmarked post-quantum variants, Hybrid-MLKEM-768 is the only one th
 
 The HQC variants tell a very different story: both the initiation and response messages require multiple fragments. Even the hybrid HQC variants are heavily fragmented in the response direction because the large HQC ciphertexts must be transmitted. The handshake latency results in Table \ref{tab:LatencyPercentiles} are a direct consequence of this fragmentation, and the gap between the ML-KEM and HQC variants in Table \ref{tab:Fragments} mirrors the gap observed in latency.
 
+\newpage
 \section{Per-Peer Static Key Storage}\label{sec:results-peermemory}
 Each peer entry stores a 32-byte Curve25519 static public key. This stays the same for the hybrid variants, as the hybrid mode does not introduce a static KEM key and authentication still relies on Curve25519. The pure-KEM mode replaces this with a static KEM public key. These static keys are provisioned out of band before any handshake can take place, and must remain resident in memory for the server to perform peer lookup during incoming handshakes.
 
@@ -220,7 +227,9 @@ This section revisits the research questions posed in Section \ref{research_ques
 
 \textbf{RQ1: How do NIST-selected post-quantum key encapsulation mechanisms, specifically ML-KEM and HQC, affect the performance of a WireGuard handshake?}
 
-As shown in Table \ref{tab:LatencyPercentiles}, ML-KEM improves handshake performance in the pure-KEM mode on the benchmark hardware, driven by AES-NI optimized implementations that outperform X25519 on this type of CPU. The hybrid ML-KEM mode adds modest overhead over the classical baseline. HQC produces latencies orders of magnitude above the classical baseline across all four variants, primarily due to IP fragmentation and software reassembly rather than cryptographic computation.
+As shown in Table \ref{tab:LatencyPercentiles}, the pure ML-KEM variant completes handshakes faster than the classical baseline on the benchmark hardware. This is likely due to some combination of the lower asymptotic cost of NTT-based lattice arithmetic and differences in compiled implementation efficiency, though this benchmark cannot isolate the precise contribution of each factor.
+
+The hybrid ML-KEM mode adds modest overhead over the classical baseline. HQC produces latencies orders of magnitude above the classical baseline across all four variants, primarily due to IP fragmentation and software reassembly rather than cryptographic computation.
 
 \textbf{RQ2: What impact do ML-KEM and HQC have on resource usage in WireGuard, particularly in terms of message size and storage requirements?}
 
@@ -234,7 +243,9 @@ Hybrid-MLKEM-768 is the only post-quantum variant that preserves WireGuard's sin
 
 \textbf{RQ4: How do hybrid cryptographic approaches compare to purely post-quantum approaches in terms of security, performance, and deployability?}
 
-The hybrid approach preserves classical security as a fallback and provides post-quantum forward secrecy, but does not achieve full post-quantum authentication. The pure-KEM approach provides both. As shown in Table \ref{tab:LatencyPercentiles}, the pure ML-KEM mode is faster than the hybrid mode on this hardware because it replaces rather than augments the classical operations, though this result is hardware-dependent. The hybrid mode is more deployable right now because it does not require distributing new static KEM public keys for all peers and can be integrated without replacing the existing static key infrastructure.
+The hybrid approach preserves classical security as a fallback and provides post-quantum forward secrecy, but does not achieve full post-quantum authentication. The pure-KEM approach provides both. As shown in Table \ref{tab:LatencyPercentiles}, the pure ML-KEM mode is faster than the hybrid mode on this hardware because it replaces rather than augments the classical operations, though this result is hardware-dependent. 
+
+The hybrid mode is more deployable right now because it does not require distributing new static KEM public keys for all peers and can be integrated without replacing the existing static key infrastructure.
 
 \textbf{RQ5: How does a hybrid WireGuard implementation using ML-KEM and HQC compare to existing post-quantum solutions in terms of performance and practical deployment?}
 
