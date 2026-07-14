@@ -100,7 +100,7 @@ Table \ref{tab:Results} shows a large variance in the message sizes across the n
 
 \subsection{Initiation Message Fields Breakdown}
 
-A fixed overhead of \qty{84}{bytes} is identical across all nine variants, as the fields it covers are independent of the choice of algorithm. As illustrated in Figure \ref{fig:wg-initiation}, these fields are the 4-byte message type, the 4-byte sender index, the 28-byte encrypted timestamp with its authentication tag, and the two 16-byte MAC fields used for denial-of-service resistance.
+A fixed overhead of \qty{84}{bytes} is identical across all nine variants, as the fields it covers are independent of the choice of algorithm. As illustrated in Figure \ref{fig:wg-initiation}, these fields are the 4-byte message type, the 4-byte sender index, the 28-byte encrypted timestamp with its 16-byte authentication tag, and the two 16-byte MAC fields used for denial-of-service resistance.
 
 The three remaining fields differ considerably between the modes. In the classical handshake the initiator sends only its 32-byte Curve25519 ephemeral public key and a 32-byte encrypted version of its static Curve25519 key, for a total of 148 bytes. For the hybrid variants, the ephemeral key field is extended by appending the KEM ephemeral public key directly after the classic Curve25519 key, and the static field remains a 32-byte Curve25519 key because authentication still relies on the classical identity. 
 

@@ -101,7 +101,7 @@
 }
 
 \usepackage[per-mode=symbol]{siunitx} 
-\sisetup{output-decimal-marker={,},
+\sisetup{output-decimal-marker={.},
 range-phrase=--,range-units=single,exponent-product=\cdot}
 \usepackage{bytefield}
 \usepackage{booktabs}
