@@ -24,7 +24,7 @@ The other fundamental primitive introduced to public-key cryptography was the Di
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.8\textwidth]{Images/dh.png}
+\includegraphics[alt={Diagram illustrating the Diffie-Hellman key exchange between two parties, Alice and Bob. Step 1: Alice and Bob agree on public parameters, p and g, which are large numbers. Step 2: Alice generates a private key a and computes her public value A = g^a mod p; Bob generates a private key b and computes his public value B = g^b mod p. Step 3: Alice and Bob exchange their public values A and B over an insecure channel. Step 4: Alice computes the shared secret as B^a mod p; Bob computes it as A^b mod p, both arriving at the same shared secret key g^(ab) mod p.}, width=0.8\textwidth]{Images/dh.png}
 \caption{A simple view of key establishment using Diffie-Hellman.}
 \label{fig:DH}
 \end{figure}
@@ -47,7 +47,7 @@ In contrast, asymmetric post-quantum algorithms including ML-KEM and HQC are des
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.8\textwidth]{Images/kem.png}
+\includegraphics[alt={Diagram illustrating key establishment between Alice and Bob using a Key Encapsulation Mechanism (KEM). Step 1: Alice generates a key pair consisting of a public encapsulation key and a private decapsulation key, and sends the encapsulation key to Bob. Step 2: Bob uses Alice's public key to run the encapsulation algorithm, producing a shared secret and a ciphertext. Step 3: Bob sends the ciphertext to Alice over the channel. Step 4: Alice uses her private key and the received ciphertext to run the decapsulation algorithm, recovering the same shared secret. Both parties now share a shared secret without it having been transmitted directly.}, width=0.8\textwidth]{Images/kem.png}
 \caption{A simple view of key establishment using a KEM}
 \label{fig:KEM}
 \end{figure}

@@ -3,10 +3,10 @@ This thesis addresses the problem statement and research questions stated in Sec
 
 \begin{figure}[H] 
     \centering 
-    \includegraphics[width=0.93\textwidth]{Images/research_approach.png} 
-    \caption{Overview of the research process.} 
+    \includegraphics[alt={Diagram illustrating the overall flow of the research process, branching into the qualitative and quantitative phases.}, width=0.93\textwidth]{Images/research_approach.png} 
+    \caption{Overview of the research process.}
     \label{fig:research-process} 
-\end{figure} 
+\end{figure}
 
 As shown in Figure \ref{fig:research-process}, the process begins with the problem statement and research questions, which drives both phases of the work. The qualitative phase begins with a literature study covering post-quantum cryptography standardization, the WireGuard protocol, and prior work on post-quantum WireGuard. A protocol analysis, in which WireGuard's internals are examined in depth, is then done in order to gain a solid understanding of the PQC integration challenges described in Section \ref{wg-PQC}. 
 
@@ -81,7 +81,7 @@ Figure \ref{fig:HYBRIDKEM} illustrates the full hybrid handshake flow.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.95\textwidth]{Images/hybrid_flow.png}
+\includegraphics[alt={Flow diagram of the hybrid handshake, showing two parallel paths for the initiator and the responder. The initiator's path: perform the standard Curve25519 DH transcript steps, generate an ephemeral KEM keypair, append the KEM public key to the Ephemeral field of the initiation message after the Curve25519 public key, and mix it into the transcript hash. The responder's path: perform the standard Curve25519 DH transcript steps, read the initiator's KEM public key, mix it into the transcript hash, encapsulate a shared secret, append the resulting ciphertext to the Ephemeral field of the response message, and mix the ciphertext into the transcript hash. The initiator then reads the ciphertext from the response, mixes it into its own transcript hash, and decapsulates it to recover the shared secret. Both paths converge in a final KDF step that combines the classical chain key with the KEM shared secret to derive the session keys.}, width=0.95\textwidth]{Images/hybrid_flow.png}
 \caption{A flow diagram of a hybrid handshake, showing both the classical DH path and the KEM path running in parallel.}
 \label{fig:HYBRIDKEM}
 \end{figure}
@@ -104,7 +104,7 @@ On receiving the initiation, the responder mirrors the initiator by mixing their
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.92\textwidth]{Images/kem_flow.png}
+\includegraphics[alt={Flow diagram of the pure-KEM handshake, showing two message exchanges between the initiator and the responder, with every DH operation replaced by a KEM operation. Initiator's steps in the initiation message: mix the responder's static public key into the transcript hash as identity commitment, generate an ephemeral KEM keypair and mix its public key into the hash and chain key, encapsulate a shared secret to the responder's static KEM public key to produce ciphertext ct_es and mix it into the transcript then the chain key, and encrypt the initiator's own static KEM public key against the transcript hash for the responder to look up the peer. Responder's steps on receiving the initiation: mirror the same mixing of its static key, ct_es, and the ephemeral public key into its transcript and chain key, decapsulate ct_es to reconstruct the shared secret, decrypt and look up the initiator's static key, then encapsulate a second shared secret to the initiator's ephemeral key to produce ciphertext ct_ee for forward secrecy, mixing it into the transcript and chain key, and finally mix its own static KEM public key into the transcript as an identity commitment before sending the response. Initiator's final steps on receiving the response: decapsulate ct_ee, mix the ciphertext and shared secret into its transcript and chain key, verify the AEAD on the empty payload, and mirror the identity commitment to confirm both sides derive matching chain keys for session key derivation.}, width=0.92\textwidth]{Images/kem_flow.png}
 \caption{Flow diagram of the pure-KEM handshake. All DH operations from the classical handshake are replaced by KEM encapsulation and decapsulation operations.}
 \label{fig:PUREKEMFLOW}
 \end{figure}
