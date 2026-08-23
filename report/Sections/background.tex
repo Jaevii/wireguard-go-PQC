@@ -121,10 +121,12 @@ ML-KEM is based on the hardness of lattice problems, specifically the so-called 
 
 One of the main advantages of ML-KEM is its strong performance and relatively moderate key sizes when compared to other PQC candidates. For example, ML-KEM-768 has a public key size of around \qty{1184}{bytes}, which is manageable in protocols like TLS. Key generation and encapsulation are also significantly faster than RSA. These properties make ML-KEM suitable for practical deployment, which is why NIST selected it as the primary standard for post-quantum key establishment.
 
-\subsection{Code-Based Cryptography (Hamming Quasi-Cyclic)}
+\subsection{Code-Based Cryptography (Hamming Quasi-Cyclic)}\label{sec:hqc}
 Hamming Quasi-Cyclic (HQC) \cite{hqc} is a code-based KEM selected by NIST in March 2025 as a backup standard to ML-KEM \cite{Moody2025NISTIR8545}. A draft standard is expected in 2026, with finalization planned for 2027.
 
 The security of HQC is based on the hardness of decoding random quasi-cyclic codes, specifically the Quasi-Cyclic Syndrome Decoding (QCSD) problem. This problem is a structured variant of the general Syndrome Decoding (SD) problem, which is known to be NP-hard. Unlike older code-based schemes such as McEliece \cite{McEliece1978}, HQC does not require hiding the structure of the code. Instead, it uses publicly known quasi-cyclic codes, and its security relies entirely on the hardness of the decoding problem itself.
+
+Because the code is public rather than hidden, HQC needs a larger code length than a scheme that relies on concealed structure would, in order to keep decoding hard for an attacker. This is the underlying reason HQC's public keys and ciphertexts are significantly larger than those of ML-KEM.
 
 HQC was selected primarily to provide \textit{cryptographic diversity}. Since ML-KEM is based on lattice problems, a future cryptanalytic breakthrough targeting lattice-based cryptography could potentially affect all systems relying on ML-KEM. By standardizing HQC, which is based on a completely different mathematical foundation, NIST ensures that a backup remains available if ML-KEM is found to be vulnerable. NIST cited HQC's solid and well-analyzed construction as reasons it was preferred over other fourth-round candidates.
 
