@@ -8,7 +8,7 @@ WireGuard was designed with a different philosophy. Instead of supporting many p
     \item Strong security
 \end{itemize}
 
-The primary C implementation of WireGuard is written in less than \num{4000} lines of code, excluding cryptographic primitives, compared to the \num{100000} to \num{400000} lines of the OpenVPN and IPsec implementations. This makes the codebase small enough for a single person to read and understand in full, which has direct benefits: a smaller attack surface, easier auditing, and easiser to maintain.
+The primary C implementation of WireGuard is written in less than \num{4000} lines of code, excluding cryptographic primitives, compared to the \num{100000} to \num{400000} lines of the OpenVPN and IPsec implementations. This makes the codebase small enough for a single person to read and understand in full, which has direct benefits: a smaller attack surface, easier auditing, and easier to maintain.
 
 Unlike protocols like IPsec or OpenVPN, WireGuard does not support cipher agility. Cipher agility means that the communicating peers can negotiate which cryptographic algorithms should be used during the connection setup. While this provides flexibility, it has historically introduced downgrade attacks and misconfiguration problems. WireGuard instead uses a fixed cryptographic suite consisting of:
 \begin{itemize}

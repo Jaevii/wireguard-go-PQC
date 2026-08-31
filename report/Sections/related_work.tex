@@ -14,7 +14,7 @@ Achieving full post-quantum authentication would therefore require replacing the
 
 For this thesis, Rosenpass is relevant as a deployed reference implementation that uses CRYSTALS-Kyber in a production context. Its PSK-based integration strategy also represents a natural performance baseline. Since it adds a separate handshake on top of WireGuard, the combined latency is higher than a fully integrated solution. The performance results in this thesis can therefore be interpreted in the context of whether a deeper integration actually yields a meaningful latency improvement over the Rosenpass approach.
 
-The most recent related work is by Hashimoto, Katsumata, Niot, and Wiggers \cite{rebar} (IEEE S\&P 2026), which adresses the original PQ-WireGuard design by Hülsing et al. \cite{pqwg}, and improves it across three dimensions: protocol design, computational security, and efficiency.
+The most recent related work is by Hashimoto, Katsumata, Niot, and Wiggers \cite{rebar} (IEEE S\&P 2026), which addresses the original PQ-WireGuard design by Hülsing et al. \cite{pqwg}, and improves it across three dimensions: protocol design, computational security, and efficiency.
 
 The main design contribution of the paper is the introduction of \textit{reinforced KEMs} (RKEMs), a principled way to replace DH operations within the Noise framework with KEM operations. As KEMs produce two distinct values, a public key and a ciphertext, compared to a DH exchange that only produces a single shared value, the question of which values to mix into the key derivation chain, and in what order, arises.
  
